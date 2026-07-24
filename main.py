@@ -20,24 +20,8 @@ from typing import Optional, List
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-
-app = FastAPI()
-
-# --- ADD CORS SETUP HERE ---
-origins = [
-    "http://localhost:3000",      # Your local frontend development URL (e.g., React)
-    "http://127.0.0.1:5500",      # Your local HTML/Live Server URL
-    "hhttps://bussiness-fblq.onrender.com"  
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,        # Allows these specific sites to talk to your backend
-    allow_credentials=True,
-    allow_methods=["*"],          # Allows all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],          # Allows all headers
-)
 
 # ===========================================================================
 # SECTION 1: DATABASE LAYER (same schema as the original Streamlit app)
@@ -499,6 +483,14 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     init_db()
+
+
+INDEX_HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+
+
+@app.get("/")
+def serve_frontend():
+    return FileResponse(INDEX_HTML_PATH)
 
 
 # ---------- Pydantic models ----------
