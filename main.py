@@ -21,7 +21,7 @@ import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
+app = FastAPI() 
 # ===========================================================================
 # SECTION 1: DATABASE LAYER (same schema as the original Streamlit app)
 # ===========================================================================
