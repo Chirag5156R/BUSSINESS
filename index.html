@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ledgerly — Billing &amp; Stock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --panel:#ffffff; --panel2:#f8fafc; --bg:#f4f6f8; --border:#e8ebf0; --border-strong:#dbe0e6;
+    --text:#0f1a24; --muted:#5b6b7a; --faint:#9aa7b4;
+    --brand:#0f8a6b; --brand-text:#0c6f56; --brand-weak:#e6f4ef;
+    --ai:#6d5ae6; --ai-weak:#efecfd;
+    --pos:#12915f; --neg:#d1495b; --neg-weak:#fbe7ea; --warn:#b8860b; --warn-weak:#fdf3d9;
+    --radius:14px; --shadow:0 1px 2px rgba(15,26,36,.05); --shadow-lg:0 10px 30px -10px rgba(15,26,36,.18);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif; color:var(--text);
+    background:var(--bg); min-height:100vh; -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3{font-family:inherit; color:var(--text); font-weight:800; letter-spacing:-.02em; margin:0}
+  .mono{font-family:'JetBrains Mono',monospace}
+  a{color:var(--brand-text)}
+  button{font-family:inherit; cursor:pointer}
+  input,select{font-family:inherit}
+  ::selection{background:rgba(15,138,107,.18)}
+
+  .layout{display:flex; min-height:100vh; align-items:stretch}
+
+  /* Sidebar */
+  .sidebar{
+    width:250px; flex:none; padding:20px 16px; display:flex; flex-direction:column; gap:4px;
+    background:var(--panel); border-right:1px solid var(--border); color:var(--text);
+  }
+  .brand{display:flex; align-items:center; gap:11px; padding:6px 8px 20px}
+  .brand .mark{width:34px;height:34px;border-radius:9px;background:var(--brand);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
+  .brand .name{font-weight:800; font-size:16px; letter-spacing:-.02em; color:var(--text)}
+  .brand .tag{font-size:11px; color:var(--faint); font-weight:500; letter-spacing:.02em}
+  .navlabel{font-size:11px; font-weight:700; letter-spacing:.07em; color:var(--faint); text-transform:uppercase; padding:4px 10px 6px}
+  .navbtn{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:none;
+    color:var(--muted); padding:9px 11px; border-radius:10px; font-size:13.5px; font-weight:600;
+  }
+  .navbtn:hover{background:var(--panel2)}
+  .navbtn.active{background:var(--brand-weak); color:var(--brand-text)}
+  .navbtn svg{flex:none; opacity:.9}
+  .sidebar-footer{margin-top:auto; padding-top:16px}
+  .sidebar-card{background:linear-gradient(160deg,var(--brand-weak),var(--ai-weak)); border:1px solid var(--border); border-radius:14px; padding:16px}
+  .sidebar-card p{font-size:12px; line-height:1.5; color:var(--muted); margin:0 0 12px}
+  .sidebar-card p strong{color:var(--text)}
+  .sidebar-card button{width:100%; border:none; background:var(--brand); color:#fff; font-weight:600; font-size:12.5px; padding:9px; border-radius:9px}
+
+  /* Main */
+  .main{flex:1; min-width:0; display:flex; flex-direction:column}
+  header{
+    position:sticky; top:0; z-index:5; background:rgba(255,255,255,.82); backdrop-filter:saturate(140%) blur(10px);
+    border-bottom:1px solid var(--border); padding:0 28px; height:66px; display:flex; align-items:center; justify-content:space-between; gap:14px;
+  }
+  header h1{font-size:20px; font-weight:700}
+  header p{margin:1px 0 0; font-size:12.5px; color:var(--faint); font-weight:500}
+  .content{padding:24px 28px 60px; max-width:1180px; width:100%; margin:0 auto}
+  .page{display:none}
+  .page.active{display:block; animation:fadeUp .25s ease}
+  @keyframes fadeUp{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
+
+  /* Cards / grid */
+  .grid{display:grid; gap:16px}
+  .grid-4{grid-template-columns:repeat(4,1fr)}
+  .grid-2{grid-template-columns:1fr 1fr}
+  @media (max-width:900px){.grid-4{grid-template-columns:repeat(2,1fr)} .grid-2{grid-template-columns:1fr}}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow)}
+  .card h3{font-size:14px; font-weight:700; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:14px}
+  .stat .label{font-size:12.5px; color:var(--muted); font-weight:600}
+  .stat .value{font-size:26px; font-weight:800; letter-spacing:-.02em; color:var(--text); margin-top:8px; font-variant-numeric:tabular-nums}
+  .stat .delta{font-size:12px; margin-top:8px; font-weight:700}
+  .delta.pos{color:var(--pos)} .delta.neg{color:var(--neg)}
+
+  /* Buttons */
+  .btn{background:var(--brand); color:#fff; border:none; border-radius:10px; padding:9px 18px; font-weight:600; font-size:13.5px}
+  .btn:hover{filter:brightness(1.06)}
+  .btn.secondary{background:var(--panel); color:var(--text); border:1px solid var(--border)}
+  .btn.gold{background:var(--ai); color:#fff}
+  .btn:disabled{opacity:.5; cursor:not-allowed; filter:none}
+
+  /* Forms */
+  label{font-size:12.5px; font-weight:600; color:var(--text); display:block; margin-bottom:5px}
+  input,select{width:100%; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:9px 10px; font-size:13.5px; color:var(--text)}
+  input:focus,select:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-weak)}
+  .field{margin-bottom:12px}
+  .row{display:flex; gap:12px}
+  .row > *{flex:1}
+
+  /* Tables */
+  table{width:100%; border-collapse:collapse; font-size:13.5px}
+  thead th{background:var(--panel2); color:var(--muted); text-align:left; padding:10px 12px; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.04em}
+  tbody td{padding:10px 12px; border-top:1px solid var(--border); color:var(--text)}
+  .table-wrap{border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow)}
+
+  .badge{display:inline-block; padding:2px 10px; border-radius:999px; font-size:11.5px; font-weight:700}
+  .badge-green{background:var(--brand-weak); color:var(--brand-text)}
+  .badge-gold{background:var(--warn-weak); color:var(--warn)}
+  .badge-red{background:var(--neg-weak); color:var(--neg)}
+
+  .tabs{display:flex; gap:4px; background:var(--panel2); border:1px solid var(--border); border-radius:11px; padding:4px; width:fit-content; margin-bottom:18px}
+  .tab{border:none; background:none; padding:7px 16px; border-radius:8px; font-weight:600; font-size:13px; color:var(--muted)}
+  .tab.active{background:var(--panel); color:var(--brand-text); box-shadow:var(--shadow)}
+
+  .callout{border-radius:12px; padding:12px 14px; font-size:13.5px; margin:10px 0}
+  .callout.success{background:var(--brand-weak); color:var(--brand-text)}
+  .callout.error{background:var(--neg-weak); color:var(--neg)}
+  .callout.info{background:var(--ai-weak); color:var(--ai)}
+
+  .cart-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border)}
+  .cart-row:last-child{border-bottom:none}
+  .cart-row .name{flex:2}
+  .cart-row .qty, .cart-row .price, .cart-row .total{flex:1; text-align:right}
+  .cart-row button{background:none; border:none; color:var(--neg); font-size:16px}
+
+  .product-item{display:flex; gap:14px; align-items:center; padding:12px 0; border-bottom:1px solid var(--border)}
+  .product-item:last-child{border-bottom:none}
+  .avatar{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex:none}
+
+  /* AI coach */
+  .coach-wrap{display:grid; grid-template-columns:1fr 260px; gap:16px}
+  @media (max-width:900px){.coach-wrap{grid-template-columns:1fr}}
+  .chat-log{height:440px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:6px}
+  .bubble{max-width:80%; padding:10px 14px; border-radius:14px; font-size:13.5px; line-height:1.5}
+  .bubble.user{align-self:flex-end; background:var(--brand); color:#fff; border-bottom-right-radius:4px}
+  .bubble.ai{align-self:flex-start; background:var(--panel2); border:1px solid var(--border); border-bottom-left-radius:4px; white-space:pre-wrap}
+  .chat-input{display:flex; gap:8px; margin-top:12px}
+  .chat-input input{flex:1}
+  .suggested{display:flex; flex-direction:column; gap:8px}
+  .suggested button{text-align:left; background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:9px 12px; font-size:12.5px; color:var(--text)}
+  .empty{color:var(--faint); font-size:13px; padding:20px 0; text-align:center}
+  .spinner{display:inline-block; width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--brand); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V8"></path></svg>
+      </div>
+      <div>
+        <div class="name">Ledgerly</div>
+        <div class="tag">Billing &amp; Stock</div>
+      </div>
+    </div>
+    <div class="navlabel">Menu</div>
+    <button class="navbtn active" data-page="home">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"></path><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"></path></svg>
+      <span>Home</span>
+    </button>
+    <button class="navbtn" data-page="billing">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"></path><path d="M9 9h6M9 13h6M9 17h4"></path></svg>
+      <span>Billing</span>
+    </button>
+    <button class="navbtn" data-page="sales">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4M4 20h16M8 16l3-4 3 2 4-6"></path></svg>
+      <span>Sales</span>
+    </button>
+    <button class="navbtn" data-page="dashboard">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
+      <span>Dashboard</span>
+    </button>
+    <button class="navbtn" data-page="stock">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8"></path><path d="M12 13v8"></path></svg>
+      <span>Stock</span>
+    </button>
+    <button class="navbtn" data-page="coach">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.6 3.9L18 8l-3.4 1.5L12 13l-1.6-3.5L7 8l3.4-1.1L12 3z"></path><path d="M18 14l.8 2 2 .8-2 .8L18 20l-.8-2-2-.8 2-.8.8-2z"></path></svg>
+      <span>AI Coach</span>
+    </button>
+    <div class="sidebar-footer">
+      <div class="sidebar-card">
+        <p>Ask the AI Coach about your revenue, slow stock, or which customers to chase for payment.</p>
+        <button onclick="goTo('coach')">Ask the coach</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header>
+      <div>
+        <h1 id="pageTitle">Home</h1>
+        <p id="pageSubtitle">Overview of your shop</p>
+      </div>
+      <div id="apiStatus" class="mono" style="font-size:11.5px;color:var(--faint)"></div>
+    </header>
+
+    <div class="content">
+
+      <!-- HOME -->
+      <section class="page active" id="page-home">
+        <div class="grid grid-4" id="homeStats"></div>
+        <div class="callout info" style="margin-top:18px">
+          👉 Use the sidebar to go to <b>Billing</b> to create a bill, <b>Sales</b> for history,
+          <b>Dashboard</b> for profit/loss and AI insights, <b>Stock</b> to manage inventory, or
+          <b>AI Coach</b> to just ask.
+        </div>
+      </section>
+
+      <!-- BILLING -->
+      <section class="page" id="page-billing">
+        <div class="tabs">
+          <button class="tab active" data-tab="newbill">Make a Bill</button>
+          <button class="tab" data-tab="register">Register Customer</button>
+          <button class="tab" data-tab="payments">Record Payment</button>
+          <button class="tab" data-tab="outstanding">Outstanding Balances</button>
+        </div>
+
+        <div class="tabpane active" id="tab-newbill">
+          <div class="grid grid-2">
+            <div class="card">
+              <h3>New bill</h3>
+              <div class="field">
+                <label>Customer</label>
+                <select id="billCustomer"><option value="">Walk-in (no record)</option></select>
+              </div>
+              <div class="row">
+                <div class="field">
+                  <label>Product</label>
+                  <select id="billProduct"></select>
+                </div>
+                <div class="field" style="max-width:100px">
+                  <label>Qty</label>
+                  <input id="billQty" type="number" min="1" value="1">
+                </div>
+              </div>
+              <button class="btn secondary" onclick="addToCart()">➕ Add to bill</button>
+              <div id="cartError"></div>
+            </div>
+            <div class="card">
+              <h3>Current bill</h3>
+              <div id="cartItems"><p class="empty">No items yet — add products on the left.</p></div>
+              <div id="cartTotal"></div>
+              <div class="field" style="margin-top:12px">
+                <label>Payment mode</label>
+                <select id="payMode"><option>Cash</option><option>Card</option></select>
+              </div>
+              <div class="field">
+                <label>Amount paid now</label>
+                <input id="paidAmount" type="number" min="0" step="1" value="0">
+              </div>
+              <div id="billStatus"></div>
+              <button class="btn" id="finalizeBtn" onclick="finalizeBill()">✅ Finalize bill</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabpane" id="tab-register" style="display:none">
+          <div class="grid grid-2">
+            <div class="card">
+              <h3>Register a new customer</h3>
+              <div class="field"><label>Customer name</label><input id="custName"></div>
+              <div class="field"><label>Mobile number</label><input id="custMobile"></div>
+              <div id="custStatus"></div>
+              <button class="btn" onclick="registerCustomer()">Register</button>
+            </div>
+            <div class="card">
+              <h3>All registered customers</h3>
+              <div class="table-wrap"><table id="custTable"><thead><tr><th>ID</th><th>Name</th><th>Mobile</th></tr></thead><tbody></tbody></table></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tabpane" id="tab-payments" style="display:none">
+          <div class="card">
+            <h3>Record a payment against an existing bill</h3>
+            <div id="unpaidBillsWrap"></div>
+          </div>
+        </div>
+
+        <div class="tabpane" id="tab-outstanding" style="display:none">
+          <div class="card">
+            <h3>Money unpaid / balance due</h3>
+            <div class="table-wrap"><table id="outstandingTable"><thead><tr><th>Customer</th><th>Mobile</th><th>Bills</th><th>Total unpaid (₹)</th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <h3>🤖 AI: who pays on time, who doesn't</h3>
+            <button class="btn gold" onclick="runAI('payment-behavior', 'paymentAiOut')">Generate payment behavior analysis</button>
+            <div id="paymentAiOut"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SALES -->
+      <section class="page" id="page-sales">
+        <div class="row" style="margin-bottom:16px">
+          <div class="field"><label>Period</label>
+            <select id="salesPeriod" onchange="onSalesPeriodChange()">
+              <option>Today</option><option>This Week</option><option selected>This Month</option><option>All Time</option><option>Custom Range</option>
+            </select>
+          </div>
+          <div class="field"><label>Customer</label><select id="salesCustomer"><option value="">All customers</option></select></div>
+        </div>
+        <div class="row" id="salesCustomRange" style="display:none">
+          <div class="field"><label>Start date</label><input type="date" id="salesStart"></div>
+          <div class="field"><label>End date</label><input type="date" id="salesEnd"></div>
+        </div>
+        <button class="btn secondary" onclick="loadSales()">Apply filters</button>
+        <div class="grid grid-4" style="margin:18px 0" id="salesStats"></div>
+        <h3 style="margin-bottom:10px">Bills</h3>
+        <div id="billsList"></div>
+      </section>
+
+      <!-- DASHBOARD -->
+      <section class="page" id="page-dashboard">
+        <div class="row" style="margin-bottom:16px">
+          <div class="field"><label>Period</label>
+            <select id="dashPeriod" onchange="onDashPeriodChange()">
+              <option>Today</option><option>This Week</option><option selected>This Month</option><option>All Time</option><option>Custom Range</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" id="dashCustomRange" style="display:none">
+          <div class="field"><label>Start date</label><input type="date" id="dashStart"></div>
+          <div class="field"><label>End date</label><input type="date" id="dashEnd"></div>
+        </div>
+        <button class="btn secondary" onclick="loadDashboard()">Apply filters</button>
+
+        <h3 style="margin:18px 0 10px">💰 Profit &amp; Loss</h3>
+        <div class="grid grid-4" id="dashStats"></div>
+        <div id="dashCallout"></div>
+
+        <h3 style="margin:22px 0 10px">📦 Product performance</h3>
+        <div class="grid grid-2">
+          <div class="card"><h3>🔥 Top selling products</h3><div id="topProducts"></div></div>
+          <div class="card"><h3>🐌 Not selling / slow-moving</h3><div id="slowProducts"></div></div>
+        </div>
+
+        <div class="card" style="margin-top:18px">
+          <h3>🤖 AI: what can be done to improve sales</h3>
+          <button class="btn gold" onclick="runSalesAI()">Generate sales insights</button>
+          <div id="salesAiOut"></div>
+        </div>
+      </section>
+
+      <!-- STOCK -->
+      <section class="page" id="page-stock">
+        <div class="tabs">
+          <button class="tab active" data-tab="checkstock">Check Stock</button>
+          <button class="tab" data-tab="additem">Add Item</button>
+          <button class="tab" data-tab="reorderai">AI Reorder Advice</button>
+        </div>
+
+        <div class="tabpane active" id="tab-checkstock">
+          <div class="card">
+            <h3>Current inventory</h3>
+            <div id="productList"></div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <h3>Restock an existing item</h3>
+            <div class="row">
+              <div class="field"><label>Product</label><select id="restockProduct"></select></div>
+              <div class="field" style="max-width:120px"><label>Qty to add</label><input id="restockQty" type="number" min="1" value="1"></div>
+            </div>
+            <div id="restockStatus"></div>
+            <button class="btn" onclick="restock()">Add stock</button>
+          </div>
+        </div>
+
+        <div class="tabpane" id="tab-additem" style="display:none">
+          <div class="card">
+            <h3>Add a new product</h3>
+            <div class="field"><label>Product name</label><input id="prodName"></div>
+            <div class="row">
+              <div class="field"><label>Cost price (₹)</label><input id="prodCost" type="number" min="0" step="1" value="0"></div>
+              <div class="field"><label>Selling price (₹)</label><input id="prodSell" type="number" min="0" step="1" value="0"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Initial stock qty</label><input id="prodStock" type="number" min="0" step="1" value="0"></div>
+              <div class="field"><label>Reorder alert level</label><input id="prodReorder" type="number" min="0" step="1" value="5"></div>
+            </div>
+            <div id="prodStatus"></div>
+            <button class="btn" onclick="addProduct()">Add product</button>
+          </div>
+        </div>
+
+        <div class="tabpane" id="tab-reorderai" style="display:none">
+          <div class="card">
+            <h3>🤖 AI: what needs to be ordered, what must be avoided</h3>
+            <div id="lowStockCallout"></div>
+            <button class="btn gold" onclick="runAI('stock-insights', 'stockAiOut')">Generate stock recommendations</button>
+            <div id="stockAiOut"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI COACH -->
+      <section class="page" id="page-coach">
+        <div class="coach-wrap">
+          <div class="card">
+            <h3>Ask the AI Coach</h3>
+            <div class="chat-log" id="chatLog">
+              <div class="bubble ai">Hi! I can see your shop's live numbers — ask me about revenue, pricing, slow stock, or which customers to chase for payment.</div>
+            </div>
+            <div class="chat-input">
+              <input id="chatInput" placeholder="Ask something..." onkeydown="if(event.key==='Enter') sendChat()">
+              <button class="btn" onclick="sendChat()">Send</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3 style="font-size:13px">Suggested questions</h3>
+            <div class="suggested">
+              <button onclick="askSuggested('Should I increase my prices?')">Should I increase my prices?</button>
+              <button onclick="askSuggested('How can I increase profit?')">How can I increase profit?</button>
+              <button onclick="askSuggested('Which customers should I chase for payment?')">Which customers should I chase?</button>
+              <button onclick="askSuggested('What should I restock soon?')">What should I restock soon?</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = window.LEDGERLY_API_BASE || 'http://localhost:8000';
+const AVATAR_COLORS = ['#585F7C','#5237B2','#F59F00','#E64980','#7048E8','#12B886','#F76707'];
+function colorFor(name){ let h=0; for(const c of name) h = (h*31 + c.charCodeAt(0)) % AVATAR_COLORS.length; return AVATAR_COLORS[h]; }
+function initials(name){ return name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase(); }
+function inr(n){ return '₹' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+async function api(path, opts={}){
+  const res = await fetch(API_BASE + path, {
+    headers: {'Content-Type':'application/json'},
+    ...opts,
+  });
+  if(!res.ok){
+    let detail = 'Request failed';
+    try{ detail = (await res.json()).detail || detail; }catch(e){}
+    throw new Error(detail);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+// ---------- Navigation ----------
+function goTo(page){
+  document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.page===page));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id===`page-${page}`));
+  const titles = {home:['Home','Overview of your shop'], billing:['Billing','Create bills, register customers, record payments'],
+    sales:['Sales','Filter sales by period and customer'], dashboard:['Dashboard','Profit & loss and AI insights'],
+    stock:['Stock','Manage inventory'], coach:['AI Coach','Ask about your business, powered by Groq']};
+  document.getElementById('pageTitle').textContent = titles[page][0];
+  document.getElementById('pageSubtitle').textContent = titles[page][1];
+  if(page==='billing') loadBillingTab();
+  if(page==='sales') loadSales();
+  if(page==='dashboard') loadDashboard();
+  if(page==='stock') loadStock();
+  if(page==='home') loadHome();
+}
+document.querySelectorAll('.navbtn').forEach(b => b.addEventListener('click', () => goTo(b.dataset.page)));
+
+document.querySelectorAll('.tabs').forEach(tabs => {
+  tabs.addEventListener('click', e => {
+    const btn = e.target.closest('.tab'); if(!btn) return;
+    const section = tabs.parentElement;
+    tabs.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t===btn));
+    section.querySelectorAll('.tabpane').forEach(p => p.style.display = (p.id === `tab-${btn.dataset.tab}` ? 'block':'none'));
+  });
+});
+
+// ---------- Home ----------
+async function loadHome(){
+  try{
+    const s = await api('/api/summary');
+    document.getElementById('homeStats').innerHTML = `
+      ${statCard('Registered customers', s.total_customers)}
+      ${statCard('Products in catalog', s.total_products)}
+      ${statCard('Total bills created', s.total_bills)}
+      ${statCard('Total outstanding balance', inr(s.total_due))}
+    `;
+    setApiStatus(true);
+  }catch(e){ setApiStatus(false); }
+}
+function statCard(label, value, delta){
+  return `<div class="card stat"><div class="label">${label}</div><div class="value">${value}</div>${delta?`<div class="delta ${delta.startsWith('-')?'neg':'pos'}">${delta}</div>`:''}</div>`;
+}
+function setApiStatus(ok){
+  document.getElementById('apiStatus').textContent = ok ? '● API connected' : '● API unreachable — check backend';
+  document.getElementById('apiStatus').style.color = ok ? 'var(--brand-text)' : 'var(--neg)';
+}
+
+// ---------- Billing ----------
+let cart = [];
+let customersCache = [], productsCache = [];
+
+async function loadBillingTab(){
+  const [customers, products] = await Promise.all([api('/api/customers'), api('/api/products')]);
+  customersCache = customers; productsCache = products;
+
+  const custSel = document.getElementById('billCustomer');
+  custSel.innerHTML = '<option value="">Walk-in (no record)</option>' +
+    customers.map(c => `<option value="${c.id}">${c.name} (${c.mobile})</option>`).join('');
+
+  const prodSel = document.getElementById('billProduct');
+  prodSel.innerHTML = products.map(p => `<option value="${p.id}">${p.name} (${inr(p.sell_price)}, stock ${p.stock_qty})</option>`).join('');
+
+  renderCustTable(customers);
+  renderOutstanding();
+  renderUnpaidBills();
+}
+
+function renderCustTable(customers){
+  document.getElementById('custTable').querySelector('tbody').innerHTML =
+    customers.map(c => `<tr><td>${c.id}</td><td>${c.name}</td><td>${c.mobile}</td></tr>`).join('') ||
+    '<tr><td colspan="3" class="empty">No customers registered yet.</td></tr>';
+}
+
+async function registerCustomer(){
+  const name = document.getElementById('custName').value.trim();
+  const mobile = document.getElementById('custMobile').value.trim();
+  const statusEl = document.getElementById('custStatus');
+  if(!name || !mobile){ statusEl.innerHTML = '<div class="callout error">Please enter both name and mobile number.</div>'; return; }
+  try{
+    await api('/api/customers', {method:'POST', body: JSON.stringify({name, mobile})});
+    statusEl.innerHTML = `<div class="callout success">Registered '${name}'.</div>`;
+    document.getElementById('custName').value=''; document.getElementById('custMobile').value='';
+    loadBillingTab();
+  }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
+}
+
+function addToCart(){
+  const pid = Number(document.getElementById('billProduct').value);
+  const qty = Number(document.getElementById('billQty').value);
+  const prod = productsCache.find(p => p.id===pid);
+  const errEl = document.getElementById('cartError');
+  if(!prod){ return; }
+  if(qty > prod.stock_qty){ errEl.innerHTML = `<div class="callout error">Only ${prod.stock_qty} units of ${prod.name} in stock.</div>`; return; }
+  errEl.innerHTML = '';
+  cart.push({product_id: prod.id, name: prod.name, quantity: qty, price_each: prod.sell_price, cost_each: prod.cost_price});
+  renderCart();
+}
+
+function renderCart(){
+  const wrap = document.getElementById('cartItems');
+  if(cart.length===0){ wrap.innerHTML = '<p class="empty">No items yet — add products on the left.</p>'; document.getElementById('cartTotal').innerHTML=''; return; }
+  let total = 0;
+  wrap.innerHTML = cart.map((item, idx) => {
+    const lineTotal = item.quantity * item.price_each; total += lineTotal;
+    return `<div class="cart-row"><div class="name">${item.name}</div><div class="qty">×${item.quantity}</div><div class="price">${inr(item.price_each)}</div><div class="total">${inr(lineTotal)}</div><button onclick="removeFromCart(${idx})">🗑️</button></div>`;
+  }).join('');
+  document.getElementById('cartTotal').innerHTML = `<h3 style="margin-top:14px;border:none;padding:0">Total: ${inr(total)}</h3>`;
+  document.getElementById('paidAmount').value = total.toFixed(2);
+  document.getElementById('paidAmount').max = total;
+  updateBillStatus();
+}
+function removeFromCart(idx){ cart.splice(idx,1); renderCart(); }
+
+document.getElementById('paidAmount').addEventListener('input', updateBillStatus);
+function cartTotal(){ return cart.reduce((s,i)=>s + i.quantity*i.price_each, 0); }
+function updateBillStatus(){
+  const total = cartTotal();
+  const paid = Number(document.getElementById('paidAmount').value || 0);
+  const balance = Math.round((total - paid)*100)/100;
+  const statusEl = document.getElementById('billStatus');
+  const custId = document.getElementById('billCustomer').value;
+  let html = balance > 0 ? `<div class="callout error">Balance due after this payment: ${inr(balance)}</div>` : `<div class="callout success">Fully paid.</div>`;
+  let disable = false;
+  if(!custId && balance > 0){
+    html += `<div class="callout error">A balance due can't be tracked for a walk-in customer. Register the customer first, or collect full payment.</div>`;
+    disable = true;
+  }
+  statusEl.innerHTML = cart.length ? html : '';
+  document.getElementById('finalizeBtn').disabled = disable || cart.length===0;
+}
+document.getElementById('billCustomer').addEventListener('change', updateBillStatus);
+
+async function finalizeBill(){
+  const customer_id = document.getElementById('billCustomer').value || null;
+  const paid_amount = Number(document.getElementById('paidAmount').value);
+  const payment_mode = document.getElementById('payMode').value;
+  try{
+    const res = await api('/api/bills', {method:'POST', body: JSON.stringify({
+      customer_id: customer_id ? Number(customer_id) : null,
+      items: cart.map(({product_id, quantity, price_each, cost_each}) => ({product_id, quantity, price_each, cost_each})),
+      paid_amount, payment_mode,
+    })});
+    document.getElementById('billStatus').innerHTML = `<div class="callout success">Bill #${res.id} created successfully! 🎉</div>`;
+    cart = []; renderCart();
+    loadBillingTab();
+  }catch(e){ document.getElementById('billStatus').innerHTML = `<div class="callout error">${e.message}</div>`; }
+}
+
+async function renderOutstanding(){
+  const rows = await api('/api/customers/outstanding');
+  document.getElementById('outstandingTable').querySelector('tbody').innerHTML = rows.map(o =>
+    `<tr><td>${o.name}</td><td>${o.mobile}</td><td>${o.bill_count}</td><td>${inr(o.total_due)}</td></tr>`
+  ).join('') || '<tr><td colspan="4" class="empty">No unpaid balances right now.</td></tr>';
+}
+
+async function renderUnpaidBills(){
+  const bills = (await api('/api/bills')).filter(b => b.balance_due > 0);
+  const wrap = document.getElementById('unpaidBillsWrap');
+  if(bills.length===0){ wrap.innerHTML = "<p class=\"empty\">No outstanding bills. Everyone's paid up! 🎉</p>"; return; }
+  wrap.innerHTML = `
+    <div class="field"><label>Select bill</label>
+      <select id="payBillSelect">${bills.map(b => `<option value="${b.id}" data-due="${b.balance_due}">Bill #${b.id} — ${b.customer_name||'Walk-in'} — due ${inr(b.balance_due)}</option>`).join('')}</select>
+    </div>
+    <div class="row">
+      <div class="field"><label>Amount received</label><input id="payAmount" type="number" min="0.01" step="1"></div>
+      <div class="field"><label>Mode</label><select id="payModeSelect"><option>Cash</option><option>Card</option></select></div>
+    </div>
+    <div id="payStatus"></div>
+    <button class="btn" onclick="recordPayment()">Record payment</button>
+  `;
+  const sel = document.getElementById('payBillSelect');
+  const syncAmount = () => { document.getElementById('payAmount').value = sel.selectedOptions[0].dataset.due; document.getElementById('payAmount').max = sel.selectedOptions[0].dataset.due; };
+  sel.addEventListener('change', syncAmount); syncAmount();
+}
+
+async function recordPayment(){
+  const billId = document.getElementById('payBillSelect').value;
+  const amount = Number(document.getElementById('payAmount').value);
+  const mode = document.getElementById('payModeSelect').value;
+  const statusEl = document.getElementById('payStatus');
+  try{
+    await api(`/api/bills/${billId}/payments`, {method:'POST', body: JSON.stringify({amount, mode})});
+    statusEl.innerHTML = `<div class="callout success">Recorded ${inr(amount)} against Bill #${billId}.</div>`;
+    renderUnpaidBills(); renderOutstanding();
+  }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
+}
+
+// ---------- Sales ----------
+function periodToRange(periodSelId, startId, endId, rangeWrapId){
+  const period = document.getElementById(periodSelId).value;
+  const today = new Date(); const iso = d => d.toISOString().slice(0,10);
+  document.getElementById(rangeWrapId).style.display = period==='Custom Range' ? 'flex' : 'none';
+  if(period==='Custom Range') return {start: document.getElementById(startId).value || iso(today), end: document.getElementById(endId).value || iso(today)};
+  let start = new Date(today);
+  if(period==='Today'){ /* start=today */ }
+  else if(period==='This Week'){ start.setDate(today.getDate() - today.getDay() + 1); }
+  else if(period==='This Month'){ start = new Date(today.getFullYear(), today.getMonth(), 1); }
+  else if(period==='All Time'){ start = new Date(2000,0,1); }
+  return {start: iso(start), end: iso(today)};
+}
+function onSalesPeriodChange(){ periodToRange('salesPeriod','salesStart','salesEnd','salesCustomRange'); }
+function onDashPeriodChange(){ periodToRange('dashPeriod','dashStart','dashEnd','dashCustomRange'); }
+
+async function loadSales(){
+  const customers = customersCache.length ? customersCache : await api('/api/customers');
+  customersCache = customers;
+  const custSel = document.getElementById('salesCustomer');
+  if(custSel.options.length <= 1){
+    custSel.innerHTML = '<option value="">All customers</option>' + customers.map(c => `<option value="${c.id}">${c.name} (${c.mobile})</option>`).join('');
+  }
+  const {start, end} = periodToRange('salesPeriod','salesStart','salesEnd','salesCustomRange');
+  const customerId = document.getElementById('salesCustomer').value;
+
+  const [summary, bills] = await Promise.all([
+    api(`/api/sales/summary?start_date=${start}&end_date=${end}`),
+    api(`/api/bills?start_date=${start}&end_date=${end}` + (customerId ? `&customer_id=${customerId}` : '')),
+  ]);
+
+  document.getElementById('salesStats').innerHTML = `
+    ${statCard('Total revenue', inr(summary.revenue))}
+    ${statCard('Collected', inr(summary.collected))}
+    ${statCard('Outstanding', inr(summary.outstanding))}
+    ${statCard('Bills', summary.bill_count)}
+  `;
+
+  const listEl = document.getElementById('billsList');
+  if(bills.length===0){ listEl.innerHTML = '<p class="empty">No sales in this period.</p>'; return; }
+  listEl.innerHTML = (await Promise.all(bills.map(async b => {
+    const items = await api(`/api/bills/${b.id}/items`);
+    const rows = items.map(i => `<tr><td>${i.product_name}</td><td>${i.quantity}</td><td>${inr(i.price_each)}</td><td>${inr(i.quantity*i.price_each)}</td></tr>`).join('');
+    return `<div class="card" style="margin-bottom:12px">
+      <h3 style="font-size:14px">Bill #${b.id} — ${b.customer_name||'Walk-in'} — ${inr(b.total_amount)} — ${b.bill_date}</h3>
+      <div class="table-wrap"><table><thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Line total</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <p style="margin:10px 0 0;font-size:13px">Paid: ${inr(b.paid_amount)} | Balance due: ${inr(b.balance_due)} | Mode: ${b.payment_mode||'—'}</p>
+    </div>`;
+  }))).join('');
+}
+
+// ---------- Dashboard ----------
+async function loadDashboard(){
+  const {start, end} = periodToRange('dashPeriod','dashStart','dashEnd','dashCustomRange');
+  const [pl, ranking] = await Promise.all([
+    api(`/api/dashboard/profit-loss?start_date=${start}&end_date=${end}`),
+    api(`/api/dashboard/product-ranking?start_date=${start}&end_date=${end}`),
+  ]);
+  document.getElementById('dashStats').innerHTML = `
+    ${statCard('Revenue', inr(pl.revenue))}
+    ${statCard('Cost of goods sold', inr(pl.cost))}
+    ${statCard('Profit / loss', inr(pl.profit), pl.profit>=0?'Profit':'-Loss')}
+  `;
+  document.getElementById('dashCallout').innerHTML = pl.profit >= 0
+    ? `<div class="callout success">You're in profit by ${inr(pl.profit)} for this period.</div>`
+    : `<div class="callout error">You're at a loss of ${inr(Math.abs(pl.profit))} for this period.</div>`;
+
+  const top = ranking.filter(p => p.units_sold > 0).slice(0,5);
+  const slow = ranking.filter(p => p.units_sold === 0);
+  document.getElementById('topProducts').innerHTML = top.length ?
+    `<div class="table-wrap"><table><thead><tr><th>Product</th><th>Units sold</th><th>Revenue</th></tr></thead><tbody>${
+      top.map(p => `<tr><td>${p.name}</td><td>${p.units_sold}</td><td>${inr(p.revenue)}</td></tr>`).join('')
+    }</tbody></table></div>` : '<p class="empty">No sales in this period yet.</p>';
+  document.getElementById('slowProducts').innerHTML = slow.length ?
+    `<div class="table-wrap"><table><thead><tr><th>Product</th><th>Units sold</th></tr></thead><tbody>${
+      slow.map(p => `<tr><td>${p.name}</td><td>0</td></tr>`).join('')
+    }</tbody></table></div>` : '<p class="empty">Everything has sold at least once — nice!</p>';
+
+  window._dashRange = {start, end};
+}
+
+async function runSalesAI(){
+  const {start, end} = window._dashRange || periodToRange('dashPeriod','dashStart','dashEnd','dashCustomRange');
+  await runAI(`sales-insights?start_date=${start}&end_date=${end}`, 'salesAiOut', true);
+}
+
+// ---------- Stock ----------
+async function loadStock(){
+  const [products, lowStock] = await Promise.all([api('/api/products'), api('/api/products/low-stock')]);
+  productsCache = products;
+  const lowIds = new Set(lowStock.map(p => p.id));
+
+  document.getElementById('productList').innerHTML = products.length ? products.map(p => `
+    <div class="product-item">
+      <div class="avatar" style="background:${colorFor(p.name)}">${initials(p.name)}</div>
+      <div style="flex:1">
+        <div style="font-weight:600">${p.name}${lowIds.has(p.id) ? ' <span class="badge badge-red">⚠️ LOW STOCK</span>' : ''}</div>
+        <div style="font-size:12.5px;color:var(--muted)">Stock: ${p.stock_qty} | Cost: ${inr(p.cost_price)} | Sell: ${inr(p.sell_price)} | Reorder level: ${p.reorder_level}</div>
+        <div style="font-size:12px;color:var(--faint)">Margin per unit: ${inr(p.sell_price - p.cost_price)}</div>
+      </div>
+    </div>`).join('') : '<p class="empty">No products added yet. Use the "Add Item" tab.</p>';
+
+  document.getElementById('restockProduct').innerHTML = products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
+  document.getElementById('lowStockCallout').innerHTML = lowStock.length
+    ? `<div class="callout error">Low stock items: ${lowStock.map(p => `${p.name} (${p.stock_qty})`).join(', ')}</div>`
+    : `<div class="callout success">No items are critically low right now.</div>`;
+}
+
+async function addProduct(){
+  const name = document.getElementById('prodName').value.trim();
+  const statusEl = document.getElementById('prodStatus');
+  if(!name){ statusEl.innerHTML = '<div class="callout error">Please enter a product name.</div>'; return; }
+  const payload = {
+    name,
+    cost_price: Number(document.getElementById('prodCost').value),
+    sell_price: Number(document.getElementById('prodSell').value),
+    stock_qty: Number(document.getElementById('prodStock').value),
+    reorder_level: Number(document.getElementById('prodReorder').value),
+  };
+  try{
+    const res = await api('/api/products', {method:'POST', body: JSON.stringify(payload)});
+    statusEl.innerHTML = res.warning
+      ? `<div class="callout error">Added '${name}' (#${res.id}) — note: selling below cost.</div>`
+      : `<div class="callout success">Added '${name}' (#${res.id}) to the catalog.</div>`;
+    document.getElementById('prodName').value='';
+    loadStock();
+  }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
+}
+
+async function restock(){
+  const pid = document.getElementById('restockProduct').value;
+  const qty = Number(document.getElementById('restockQty').value);
+  const statusEl = document.getElementById('restockStatus');
+  try{
+    await api(`/api/products/${pid}/restock`, {method:'POST', body: JSON.stringify({qty})});
+    statusEl.innerHTML = `<div class="callout success">Added ${qty} units.</div>`;
+    loadStock();
+  }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
+}
+
+// ---------- AI (shared) ----------
+async function runAI(endpoint, outId, isQuery=false){
+  const outEl = document.getElementById(outId);
+  outEl.innerHTML = '<p><span class="spinner"></span>Asking Groq…</p>';
+  try{
+    const res = await api(`/api/ai/${endpoint}`, {method:'POST', body: isQuery ? undefined : '{}'});
+    outEl.innerHTML = `<div class="callout info" style="white-space:pre-wrap">${res.insight}</div>`;
+  }catch(e){ outEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
+}
+
+// ---------- AI Coach chat ----------
+let chatHistory = [];
+async function sendChat(){
+  const input = document.getElementById('chatInput');
+  const msg = input.value.trim();
+  if(!msg) return;
+  input.value='';
+  appendBubble(msg, 'user');
+  chatHistory.push({role:'user', content: msg});
+  const log = document.getElementById('chatLog');
+  const thinkingEl = document.createElement('div');
+  thinkingEl.className = 'bubble ai'; thinkingEl.innerHTML = '<span class="spinner"></span>Thinking…';
+  log.appendChild(thinkingEl); log.scrollTop = log.scrollHeight;
+  try{
+    const res = await api('/api/ai/coach', {method:'POST', body: JSON.stringify({message: msg, history: chatHistory})});
+    thinkingEl.textContent = res.text;
+    chatHistory.push({role:'assistant', content: res.text});
+  }catch(e){ thinkingEl.textContent = `⚠️ ${e.message}`; }
+  log.scrollTop = log.scrollHeight;
+}
+function appendBubble(text, who){
+  const log = document.getElementById('chatLog');
+  const el = document.createElement('div'); el.className = `bubble ${who}`; el.textContent = text;
+  log.appendChild(el); log.scrollTop = log.scrollHeight;
+}
+function askSuggested(q){ document.getElementById('chatInput').value = q; sendChat(); }
+
+// ---------- Init ----------
+loadHome();
+</script>
+</body>
+</html>

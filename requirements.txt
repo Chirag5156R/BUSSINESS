@@ -1,0 +1,5 @@
+fastapi>=0.111
+uvicorn[standard]>=0.30
+requests>=2.31
+pydantic>=2.5
+pip install -r requirements.txt
