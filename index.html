@@ -8,136 +8,479 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  /* ===================================================================
+     Ledgerly — visual layer only. Variable NAMES are preserved because
+     inline styles and JS reference var(--brand-text), var(--faint), etc.
+     =================================================================== */
   :root{
-    --panel:#ffffff; --panel2:#f8fafc; --bg:#f4f6f8; --border:#e8ebf0; --border-strong:#dbe0e6;
-    --text:#0f1a24; --muted:#5b6b7a; --faint:#9aa7b4;
-    --brand:#0f8a6b; --brand-text:#0c6f56; --brand-weak:#e6f4ef;
-    --ai:#6d5ae6; --ai-weak:#efecfd;
-    --pos:#12915f; --neg:#d1495b; --neg-weak:#fbe7ea; --warn:#b8860b; --warn-weak:#fdf3d9;
-    --radius:14px; --shadow:0 1px 2px rgba(15,26,36,.05); --shadow-lg:0 10px 30px -10px rgba(15,26,36,.18);
+    /* neutrals */
+    --bg:#f4f6f8; --panel:#ffffff; --panel2:#f8fafb;
+    --border:#e6eaee; --border-strong:#dbe1e7;
+    --text:#101827; --muted:#5b6572; --faint:#8b95a1;
+
+    /* brand (teal) */
+    --brand:#0f8a6b; --brand-text:#0c6f56; --brand-weak:rgba(15,138,107,.10);
+    --brand-weak-2:rgba(15,138,107,.20);
+
+    /* AI accent (purple) — AI features only */
+    --ai:#6d5ae6; --ai-weak:rgba(109,90,230,.10); --ai-weak-2:rgba(109,90,230,.20);
+
+    /* semantic */
+    --pos:#0f8a6b; --neg:#d1495b; --neg-weak:rgba(209,73,91,.10);
+    --warn:#b7791f; --warn-weak:rgba(183,121,31,.10);
+    --info:#2f7bbf; --info-weak:rgba(47,123,191,.10);
+
+    /* shape & depth */
+    --radius:14px; --radius-sm:10px;
+    --shadow:0 1px 2px rgba(16,24,39,.06);
+    --shadow-lg:0 8px 24px rgba(16,24,39,.10);
+    --gutter:20px;
   }
+
+  /* ---------------- Dark theme ---------------- */
+  html[data-theme="dark"]{
+    --bg:#0b0e13; --panel:#141922; --panel2:#1a212b;
+    --border:#242c37; --border-strong:#303a47;
+    --text:#e7ecf2; --muted:#9aa7b4; --faint:#66727f;
+
+    --brand:#2fbf98; --brand-text:#4fd0ac;
+    --brand-weak:rgba(47,191,152,.14); --brand-weak-2:rgba(47,191,152,.28);
+
+    --ai:#9b8cff; --ai-weak:rgba(155,140,255,.15); --ai-weak-2:rgba(155,140,255,.30);
+
+    --pos:#2fbf98; --neg:#ef6b7a; --neg-weak:rgba(239,107,122,.16);
+    --warn:#e0a94a; --warn-weak:rgba(224,169,74,.16);
+    --info:#5c93e6; --info-weak:rgba(92,147,230,.16);
+
+    --shadow:0 1px 2px rgba(0,0,0,.40);
+    --shadow-lg:0 10px 28px rgba(0,0,0,.55);
+    color-scheme:dark;
+  }
+  html[data-theme="dark"] header{background:rgba(18,23,31,.82)}
+  html[data-theme="dark"] .stat .label::after{
+    background:var(--brand-weak) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232fbf98' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 8-8'/%3E%3Cpath d='M15 7h6v6'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+  }
+  html[data-theme="dark"] .sidebar-card{
+    background:linear-gradient(140deg, rgba(47,191,152,.13) 0%, rgba(155,140,255,.15) 100%);
+  }
+  html[data-theme="dark"] .callout.info{background:rgba(155,140,255,.13)}
+  html[data-theme="dark"] .avatar{filter:saturate(.85) brightness(.95)}
+
+  /* Smooth theme transition */
+  body, .sidebar, header, .card, .table-wrap, thead th, tbody td, input, select,
+  .tabs, .tab, .callout, .badge, .bubble, .suggested button, .sidebar-card,
+  .navbtn, .btn, .trend-card, .chart-tip{
+    transition:background-color .28s ease, color .28s ease, border-color .28s ease, box-shadow .28s ease;
+  }
+
   *{box-sizing:border-box}
   html,body{margin:0;padding:0}
   body{
-    font-family:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif; color:var(--text);
+    font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif; color:var(--text);
     background:var(--bg); min-height:100vh; -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
   }
   h1,h2,h3{font-family:inherit; color:var(--text); font-weight:800; letter-spacing:-.02em; margin:0}
-  .mono{font-family:'JetBrains Mono',monospace}
-  a{color:var(--brand-text)}
+  h3{font-size:15.5px; font-weight:700; letter-spacing:-.01em}
+  .mono{font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums}
+  a{color:var(--brand-text); text-decoration:none}
+  a:hover{color:var(--brand)}
   button{font-family:inherit; cursor:pointer}
   input,select{font-family:inherit}
-  ::selection{background:rgba(15,138,107,.18)}
+  ::selection{background:var(--brand-weak-2)}
 
   .layout{display:flex; min-height:100vh; align-items:stretch}
 
-  /* Sidebar */
+  /* ---------------- Sidebar ---------------- */
   .sidebar{
-    width:250px; flex:none; padding:20px 16px; display:flex; flex-direction:column; gap:4px;
+    width:250px; flex:none; padding:20px 16px; display:flex; flex-direction:column; gap:6px;
     background:var(--panel); border-right:1px solid var(--border); color:var(--text);
   }
   .brand{display:flex; align-items:center; gap:11px; padding:6px 8px 20px}
-  .brand .mark{width:34px;height:34px;border-radius:9px;background:var(--brand);display:flex;align-items:center;justify-content:center;font-size:16px;flex:none}
-  .brand .name{font-weight:800; font-size:16px; letter-spacing:-.02em; color:var(--text)}
-  .brand .tag{font-size:11px; color:var(--faint); font-weight:500; letter-spacing:.02em}
-  .navlabel{font-size:11px; font-weight:700; letter-spacing:.07em; color:var(--faint); text-transform:uppercase; padding:4px 10px 6px}
-  .navbtn{
-    display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:none;
-    color:var(--muted); padding:9px 11px; border-radius:10px; font-size:13.5px; font-weight:600;
+  .brand .mark{
+    width:34px; height:34px; border-radius:9px; background:var(--brand);
+    display:flex; align-items:center; justify-content:center; font-size:16px; flex:none;
   }
-  .navbtn:hover{background:var(--panel2)}
+  .brand .name{font-weight:800; font-size:16px; letter-spacing:-.02em; color:var(--text); line-height:1.15}
+  .brand .tag{
+    font-size:11px; color:var(--faint); font-weight:600;
+    letter-spacing:.09em; text-transform:uppercase; margin-top:1px;
+  }
+  .navlabel{
+    font-size:11px; font-weight:700; letter-spacing:.11em; color:var(--faint);
+    text-transform:uppercase; padding:6px 10px 8px;
+  }
+  .navbtn{
+    display:flex; align-items:center; gap:11px; width:100%; text-align:left;
+    background:none; border:none; color:var(--muted);
+    padding:10px 12px; border-radius:11px; font-size:13.5px; font-weight:600;
+    transition:background .15s ease, color .15s ease;
+  }
+  .navbtn:hover{background:var(--panel2); color:var(--text)}
   .navbtn.active{background:var(--brand-weak); color:var(--brand-text)}
-  .navbtn svg{flex:none; opacity:.9}
-  .sidebar-footer{margin-top:auto; padding-top:16px}
-  .sidebar-card{background:linear-gradient(160deg,var(--brand-weak),var(--ai-weak)); border:1px solid var(--border); border-radius:14px; padding:16px}
-  .sidebar-card p{font-size:12px; line-height:1.5; color:var(--muted); margin:0 0 12px}
-  .sidebar-card p strong{color:var(--text)}
-  .sidebar-card button{width:100%; border:none; background:var(--brand); color:#fff; font-weight:600; font-size:12.5px; padding:9px; border-radius:9px}
+  .navbtn:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
+  .navbtn svg{flex:none; opacity:.95}
+  .sidebar-footer{margin-top:auto; padding-top:18px}
+  .sidebar-card{
+    background:linear-gradient(140deg, rgba(15,138,107,.09) 0%, rgba(109,90,230,.09) 100%);
+    border:1px solid var(--border); border-radius:var(--radius); padding:16px;
+  }
+  .sidebar-card p{font-size:12px; line-height:1.55; color:var(--muted); margin:0 0 12px}
+  .sidebar-card p strong{color:var(--text); font-weight:700}
+  .sidebar-card button{
+    width:100%; border:none; background:var(--brand); color:#fff; font-weight:600;
+    font-size:12.5px; padding:10px; border-radius:var(--radius-sm);
+    transition:filter .15s ease, transform .15s ease;
+  }
+  .sidebar-card button:hover{filter:brightness(1.07); transform:translateY(-1px)}
+  .sidebar-card button:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
 
-  /* Main */
+  /* ---------------- Main / header ---------------- */
   .main{flex:1; min-width:0; display:flex; flex-direction:column}
   header{
-    position:sticky; top:0; z-index:5; background:rgba(255,255,255,.82); backdrop-filter:saturate(140%) blur(10px);
-    border-bottom:1px solid var(--border); padding:0 28px; height:66px; display:flex; align-items:center; justify-content:space-between; gap:14px;
+    position:sticky; top:0; z-index:5;
+    background:rgba(255,255,255,.82);
+    backdrop-filter:blur(10px) saturate(140%); -webkit-backdrop-filter:blur(10px) saturate(140%);
+    border-bottom:1px solid var(--border); padding:0 28px; height:66px;
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
   }
-  header h1{font-size:20px; font-weight:700}
-  header p{margin:1px 0 0; font-size:12.5px; color:var(--faint); font-weight:500}
+  header h1{font-size:19px; font-weight:800; letter-spacing:-.02em; line-height:1.2}
+  header p{margin:2px 0 0; font-size:12.5px; color:var(--muted); font-weight:500}
   .content{padding:24px 28px 60px; max-width:1180px; width:100%; margin:0 auto}
   .page{display:none}
   .page.active{display:block; animation:fadeUp .25s ease}
   @keyframes fadeUp{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
 
-  /* Cards / grid */
-  .grid{display:grid; gap:16px}
-  .grid-4{grid-template-columns:repeat(4,1fr)}
+  /* ---------------- Grid & cards ---------------- */
+  .grid{display:grid; gap:var(--gutter)}
+  .grid-4{grid-template-columns:repeat(auto-fit, minmax(215px, 1fr))}
   .grid-2{grid-template-columns:1fr 1fr}
-  @media (max-width:900px){.grid-4{grid-template-columns:repeat(2,1fr)} .grid-2{grid-template-columns:1fr}}
-  .card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px; box-shadow:var(--shadow)}
-  .card h3{font-size:14px; font-weight:700; border-bottom:1px solid var(--border); padding-bottom:10px; margin-bottom:14px}
-  .stat .label{font-size:12.5px; color:var(--muted); font-weight:600}
-  .stat .value{font-size:26px; font-weight:800; letter-spacing:-.02em; color:var(--text); margin-top:8px; font-variant-numeric:tabular-nums}
-  .stat .delta{font-size:12px; margin-top:8px; font-weight:700}
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px; box-shadow:var(--shadow);
+    transition:transform .15s ease, box-shadow .15s ease;
+  }
+  .card:hover{transform:translateY(-2px); box-shadow:var(--shadow-lg)}
+  .card h3{
+    font-size:14px; font-weight:700; letter-spacing:-.01em;
+    border-bottom:1px solid var(--border); padding-bottom:11px; margin-bottom:15px;
+  }
+
+  /* KPI / stat cards — icon tile drawn with CSS, no markup added */
+  .stat .label{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-size:12.5px; color:var(--muted); font-weight:600; min-height:30px;
+  }
+  .stat .label::after{
+    content:""; width:30px; height:30px; border-radius:9px; flex:none;
+    background:var(--brand-weak) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f8a6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 8-8'/%3E%3Cpath d='M15 7h6v6'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+  }
+  .stat .value{
+    font-size:25px; font-weight:800; letter-spacing:-.03em; color:var(--text);
+    margin-top:9px; font-variant-numeric:tabular-nums;
+  }
+  .stat .delta{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11.5px; margin-top:8px; font-weight:700; letter-spacing:.02em;
+  }
   .delta.pos{color:var(--pos)} .delta.neg{color:var(--neg)}
+  .delta.pos::before, .delta.neg::before{
+    content:""; width:0; height:0; flex:none;
+    border-left:4px solid transparent; border-right:4px solid transparent;
+  }
+  .delta.pos::before{border-bottom:6px solid currentColor}
+  .delta.neg::before{border-top:6px solid currentColor}
 
-  /* Buttons */
-  .btn{background:var(--brand); color:#fff; border:none; border-radius:10px; padding:9px 18px; font-weight:600; font-size:13.5px}
-  .btn:hover{filter:brightness(1.06)}
-  .btn.secondary{background:var(--panel); color:var(--text); border:1px solid var(--border)}
-  .btn.gold{background:var(--ai); color:#fff}
-  .btn:disabled{opacity:.5; cursor:not-allowed; filter:none}
+  /* ---------------- Buttons ---------------- */
+  .btn{
+    background:var(--brand); color:#fff; border:1px solid var(--brand);
+    border-radius:var(--radius-sm); padding:9px 18px; font-weight:600; font-size:13.5px;
+    box-shadow:var(--shadow);
+    transition:filter .15s ease, transform .15s ease, box-shadow .15s ease;
+  }
+  .btn:hover{filter:brightness(1.07); transform:translateY(-1px); box-shadow:var(--shadow-lg)}
+  .btn:active{transform:translateY(0)}
+  .btn:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
+  .btn.secondary{background:var(--panel); color:var(--text); border:1px solid var(--border); box-shadow:var(--shadow)}
+  .btn.secondary:hover{border-color:var(--border-strong); filter:none}
+  .btn.gold{background:var(--ai); border-color:var(--ai); color:#fff}
+  .btn.gold:focus-visible{box-shadow:0 0 0 3px var(--ai-weak-2)}
+  .btn:disabled{
+    background:var(--panel2); border-color:var(--border); color:var(--faint);
+    cursor:not-allowed; filter:none; transform:none; box-shadow:none; opacity:1;
+  }
 
-  /* Forms */
-  label{font-size:12.5px; font-weight:600; color:var(--text); display:block; margin-bottom:5px}
-  input,select{width:100%; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:9px 10px; font-size:13.5px; color:var(--text)}
+  /* ---------------- Forms ---------------- */
+  label{font-size:12.5px; font-weight:600; color:var(--muted); display:block; margin-bottom:6px}
+  input,select{
+    width:100%; background:var(--panel); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:10px 11px; font-size:13.5px; color:var(--text);
+    transition:border-color .15s ease, box-shadow .15s ease;
+  }
+  input[type=number],input[type=date]{font-variant-numeric:tabular-nums}
+  input::placeholder{color:var(--faint)}
+  input:hover,select:hover{border-color:var(--border-strong)}
   input:focus,select:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-weak)}
-  .field{margin-bottom:12px}
-  .row{display:flex; gap:12px}
+  .field{margin-bottom:14px}
+  .row{display:flex; gap:14px}
   .row > *{flex:1}
 
-  /* Tables */
+  /* ---------------- Tables ---------------- */
   table{width:100%; border-collapse:collapse; font-size:13.5px}
-  thead th{background:var(--panel2); color:var(--muted); text-align:left; padding:10px 12px; font-weight:700; font-size:12px; text-transform:uppercase; letter-spacing:.04em}
-  tbody td{padding:10px 12px; border-top:1px solid var(--border); color:var(--text)}
+  thead th{
+    background:var(--panel2); color:var(--muted); text-align:left; padding:11px 14px;
+    font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.07em;
+    border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  tbody td{
+    padding:11px 14px; border-top:1px solid var(--border); color:var(--text);
+    font-variant-numeric:tabular-nums;
+  }
+  tbody tr:hover td{background:var(--panel2)}
   .table-wrap{border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow)}
+  .card .table-wrap{box-shadow:none}
 
-  .badge{display:inline-block; padding:2px 10px; border-radius:999px; font-size:11.5px; font-weight:700}
+  /* ---------------- Badges ---------------- */
+  .badge{
+    display:inline-block; padding:3px 10px; border-radius:999px;
+    font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    vertical-align:1px;
+  }
   .badge-green{background:var(--brand-weak); color:var(--brand-text)}
   .badge-gold{background:var(--warn-weak); color:var(--warn)}
   .badge-red{background:var(--neg-weak); color:var(--neg)}
 
-  .tabs{display:flex; gap:4px; background:var(--panel2); border:1px solid var(--border); border-radius:11px; padding:4px; width:fit-content; margin-bottom:18px}
-  .tab{border:none; background:none; padding:7px 16px; border-radius:8px; font-weight:600; font-size:13px; color:var(--muted)}
+  /* ---------------- Tabs ---------------- */
+  .tabs{
+    display:flex; gap:5px; background:var(--panel2); border:1px solid var(--border);
+    border-radius:999px; padding:5px; width:fit-content; margin-bottom:20px; flex-wrap:wrap;
+  }
+  .tab{
+    border:none; background:none; padding:7px 16px; border-radius:999px;
+    font-weight:600; font-size:13px; color:var(--muted); transition:.15s ease;
+  }
+  .tab:hover{color:var(--text)}
   .tab.active{background:var(--panel); color:var(--brand-text); box-shadow:var(--shadow)}
+  .tab:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
 
-  .callout{border-radius:12px; padding:12px 14px; font-size:13.5px; margin:10px 0}
-  .callout.success{background:var(--brand-weak); color:var(--brand-text)}
-  .callout.error{background:var(--neg-weak); color:var(--neg)}
-  .callout.info{background:var(--ai-weak); color:var(--ai)}
+  /* ---------------- Callouts ---------------- */
+  .callout{
+    border-radius:12px; padding:13px 15px; font-size:13.5px; line-height:1.55;
+    margin:12px 0; border:1px solid transparent;
+  }
+  .callout b{font-weight:700}
+  .callout.success{background:var(--brand-weak); color:var(--brand-text); border-color:var(--brand-weak-2)}
+  .callout.error{background:var(--neg-weak); color:var(--neg); border-color:rgba(209,73,91,.20)}
+  /* AI result panel — the one place a gradient wash is allowed */
+  .callout.info{
+    background:rgba(109,90,230,.09); color:var(--text);
+    border-color:var(--ai-weak-2);
+  }
 
-  .cart-row{display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:1px solid var(--border)}
+  /* ---------------- Cart rows ---------------- */
+  .cart-row{
+    display:flex; align-items:center; gap:10px; padding:10px 0;
+    border-bottom:1px solid var(--border); font-size:13.5px;
+  }
   .cart-row:last-child{border-bottom:none}
-  .cart-row .name{flex:2}
-  .cart-row .qty, .cart-row .price, .cart-row .total{flex:1; text-align:right}
-  .cart-row button{background:none; border:none; color:var(--neg); font-size:16px}
+  .cart-row .name{flex:2; font-weight:600}
+  .cart-row .qty, .cart-row .price, .cart-row .total{
+    flex:1; text-align:right; font-variant-numeric:tabular-nums; color:var(--muted);
+  }
+  .cart-row .total{color:var(--brand-text); font-weight:700}
+  .cart-row button{
+    background:none; border:1px solid transparent; color:var(--neg); font-size:14px;
+    border-radius:8px; padding:4px 7px; line-height:1; transition:.15s ease;
+  }
+  .cart-row button:hover{background:var(--neg-weak); border-color:rgba(209,73,91,.20)}
+  .cart-row button:focus-visible{outline:none; box-shadow:0 0 0 3px rgba(209,73,91,.20)}
 
-  .product-item{display:flex; gap:14px; align-items:center; padding:12px 0; border-bottom:1px solid var(--border)}
+  /* ---------------- Product list ---------------- */
+  .product-item{
+    display:flex; gap:14px; align-items:center; padding:13px 0;
+    border-bottom:1px solid var(--border);
+  }
   .product-item:last-child{border-bottom:none}
-  .avatar{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;flex:none}
+  .avatar{
+    width:44px; height:44px; border-radius:11px; display:flex; align-items:center;
+    justify-content:center; color:#fff; font-weight:700; font-size:14px; flex:none;
+    letter-spacing:.02em;
+  }
 
-  /* AI coach */
-  .coach-wrap{display:grid; grid-template-columns:1fr 260px; gap:16px}
-  @media (max-width:900px){.coach-wrap{grid-template-columns:1fr}}
-  .chat-log{height:440px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding:6px}
-  .bubble{max-width:80%; padding:10px 14px; border-radius:14px; font-size:13.5px; line-height:1.5}
-  .bubble.user{align-self:flex-end; background:var(--brand); color:#fff; border-bottom-right-radius:4px}
-  .bubble.ai{align-self:flex-start; background:var(--panel2); border:1px solid var(--border); border-bottom-left-radius:4px; white-space:pre-wrap}
-  .chat-input{display:flex; gap:8px; margin-top:12px}
+  /* ---------------- AI coach ---------------- */
+  .coach-wrap{display:grid; grid-template-columns:1fr 260px; gap:var(--gutter)}
+  .chat-log{
+    height:440px; overflow-y:auto; display:flex; flex-direction:column; gap:12px;
+    padding:6px 4px; scrollbar-width:thin;
+  }
+  .chat-log::-webkit-scrollbar{width:9px}
+  .chat-log::-webkit-scrollbar-thumb{background:var(--border-strong); border-radius:8px; border:3px solid transparent; background-clip:padding-box}
+  .bubble{
+    max-width:80%; padding:11px 14px; border-radius:14px; font-size:13.5px; line-height:1.55;
+    box-shadow:var(--shadow);
+  }
+  .bubble.user{
+    align-self:flex-end; background:var(--brand); color:#fff;
+    border-bottom-right-radius:4px;
+  }
+  .bubble.ai{
+    align-self:flex-start; background:var(--panel2); color:var(--text);
+    border:1px solid var(--border); border-bottom-left-radius:4px; white-space:pre-wrap;
+  }
+  .chat-input{display:flex; gap:10px; margin-top:14px}
   .chat-input input{flex:1}
   .suggested{display:flex; flex-direction:column; gap:8px}
-  .suggested button{text-align:left; background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:9px 12px; font-size:12.5px; color:var(--text)}
-  .empty{color:var(--faint); font-size:13px; padding:20px 0; text-align:center}
-  .spinner{display:inline-block; width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--brand); border-radius:50%; animation:spin .7s linear infinite; vertical-align:-2px; margin-right:6px}
+  .suggested button{
+    text-align:left; background:var(--panel2); border:1px solid var(--border);
+    border-radius:var(--radius-sm); padding:10px 12px; font-size:12.5px;
+    color:var(--text); font-weight:600; transition:.15s ease;
+  }
+  .suggested button:hover{background:var(--ai-weak); border-color:var(--ai-weak-2); color:var(--ai)}
+  .suggested button:focus-visible{outline:none; box-shadow:0 0 0 3px var(--ai-weak-2)}
+
+  /* ---------------- Empty states & spinner ---------------- */
+  .empty{color:var(--faint); font-size:13px; padding:22px 0; text-align:center; font-weight:500}
+  td.empty{padding:22px 14px}
+  .spinner{
+    display:inline-block; width:14px; height:14px; border:2px solid var(--border);
+    border-top-color:var(--brand); border-radius:50%; animation:spin .7s linear infinite;
+    vertical-align:-2px; margin-right:7px;
+  }
   @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------------- Responsive ---------------- */
+  /* ---------------- Header tools ---------------- */
+  .header-tools{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end}
+  .cur-select{
+    width:auto; min-width:104px; padding:8px 10px; font-size:12.5px; font-weight:600;
+    border-radius:var(--radius-sm); cursor:pointer;
+  }
+  .icon-btn{
+    width:38px; height:38px; flex:none; display:inline-flex; align-items:center; justify-content:center;
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-sm);
+    color:var(--muted); box-shadow:var(--shadow); transition:.15s ease;
+  }
+  .icon-btn:hover{color:var(--text); border-color:var(--border-strong); transform:translateY(-1px)}
+  .icon-btn:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
+  .icon-btn .i-sun{display:none}
+  html[data-theme="dark"] .icon-btn .i-sun{display:block}
+  html[data-theme="dark"] .icon-btn .i-moon{display:none}
+  #apiStatus{white-space:nowrap}
+
+  /* ---------------- Trend analytics ---------------- */
+  .trend-head{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:14px; flex-wrap:wrap; margin:26px 0 14px;
+  }
+  .trend-head h3{font-size:15px}
+  .trend-head p{margin:2px 0 0; font-size:12.5px; color:var(--faint); font-weight:500}
+  .range-pills{
+    display:flex; gap:5px; background:var(--panel2); border:1px solid var(--border);
+    border-radius:999px; padding:5px; flex-wrap:wrap;
+  }
+  .range-pills button{
+    border:none; background:none; padding:6px 14px; border-radius:999px;
+    font-size:12.5px; font-weight:600; color:var(--muted); transition:.15s ease;
+  }
+  .range-pills button:hover{color:var(--text)}
+  .range-pills button.active{background:var(--panel); color:var(--brand-text); box-shadow:var(--shadow)}
+  .range-pills button:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
+
+  .trend-grid{display:grid; gap:var(--gutter); grid-template-columns:1fr}
+  .trend-card{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:18px; box-shadow:var(--shadow);
+  }
+  .trend-card .tc-head{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
+    flex-wrap:wrap; margin-bottom:4px;
+  }
+  .tc-title{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; letter-spacing:-.01em}
+  .tc-title i{width:10px; height:10px; border-radius:3px; flex:none}
+  .tc-sub{font-size:12px; color:var(--faint); font-weight:500; margin-top:2px}
+  .tc-value{font-size:20px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums}
+  .tc-delta{font-size:11.5px; font-weight:700; letter-spacing:.02em; text-align:right; margin-top:2px}
+
+  .chart-wrap{position:relative; margin-top:14px}
+  .chart-plot{position:relative; height:170px}
+  .chart-plot svg{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
+  .chart-hover{position:absolute; inset:0; display:flex}
+  .chart-cell{position:relative; flex:1}
+  .chart-cell .chart-dot{
+    position:absolute; width:9px; height:9px; border-radius:50%;
+    border:2px solid var(--panel); transform:translate(-50%,-50%); left:50%;
+    opacity:0; transition:opacity .12s ease; pointer-events:none;
+  }
+  .chart-cell .chart-tip{
+    position:absolute; left:50%; transform:translate(-50%,-100%);
+    background:var(--panel); border:1px solid var(--border); border-radius:9px;
+    box-shadow:var(--shadow-lg); padding:8px 11px; white-space:nowrap;
+    opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:4;
+  }
+  .chart-cell:first-child .chart-tip{left:0; transform:translate(0,-100%)}
+  .chart-cell:last-child .chart-tip{left:100%; transform:translate(-100%,-100%)}
+  .chart-cell:hover .chart-dot, .chart-cell:hover .chart-tip{opacity:1}
+  .chart-cell:hover{background:linear-gradient(to right, transparent 49%, var(--border) 49%, var(--border) 51%, transparent 51%)}
+  .chart-tip .ct-m{font-size:11px; font-weight:700; color:var(--text)}
+  .chart-tip .ct-v{font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:2px}
+  .chart-xlabels{position:relative; height:16px; margin-top:8px}
+  .chart-xlabels span{
+    position:absolute; transform:translateX(-50%); font-size:10px; font-weight:600;
+    color:var(--faint); white-space:nowrap;
+  }
+  @media (min-width:1080px){ .trend-grid{grid-template-columns:repeat(3,1fr)} }
+  @media (max-width:560px){
+    .chart-plot{height:150px}
+    .chart-xlabels span:nth-child(even){display:none}
+  }
+
+  @media (max-width:1000px){
+    .coach-wrap{grid-template-columns:1fr}
+  }
+  @media (max-width:1140px){
+    .stat .label::after{display:none}
+  }
+  @media (max-width:900px){
+    .grid-2{grid-template-columns:1fr}
+  }
+  @media (max-width:760px){
+    .layout{flex-direction:column}
+    .sidebar{
+      width:100%; flex-flow:row wrap; align-items:center; gap:8px;
+      padding:14px 16px; border-right:none; border-bottom:1px solid var(--border);
+    }
+    .brand{padding:0 8px 0 0; flex:1 1 100%}
+    .navlabel{display:none}
+    .navbtn{width:auto; padding:8px 12px; border-radius:999px; background:var(--panel2)}
+    .navbtn.active{background:var(--brand-weak)}
+    .sidebar-footer{margin-top:6px; padding-top:6px; flex:1 1 100%}
+    header{padding:0 18px; height:auto; min-height:66px; flex-wrap:wrap; padding-top:12px; padding-bottom:12px}
+    .content{padding:18px 18px 48px}
+    .chat-log{height:360px}
+  }
+  @media (max-width:520px){
+    .row{flex-direction:column; gap:0}
+    .row > *{flex:auto}
+    #apiStatus{display:none}
+    .tabs{width:100%}
+    .tab{flex:1 1 auto; text-align:center}
+    .bubble{max-width:92%}
+    .stat .value{font-size:22px}
+    .cart-row{flex-wrap:wrap}
+    .cart-row .name{flex:1 1 100%}
+  }
+  @media (max-width:380px){
+    .content{padding:14px 12px 40px}
+    .card{padding:15px}
+    header{padding-left:12px; padding-right:12px}
+    .sidebar{padding:12px}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important}
+    .card:hover,.btn:hover,.sidebar-card button:hover{transform:none}
+    .page.active{animation:none}
+  }
 </style>
 </head>
 <body>
@@ -194,7 +537,15 @@
         <h1 id="pageTitle">Home</h1>
         <p id="pageSubtitle">Overview of your shop</p>
       </div>
-      <div id="apiStatus" class="mono" style="font-size:11.5px;color:var(--faint)"></div>
+      <div class="header-tools">
+        <label for="currencySelect" class="sr-only" style="position:absolute;left:-9999px">Currency</label>
+        <select id="currencySelect" class="cur-select" onchange="setCurrency(this.value)"></select>
+        <button class="icon-btn" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+          <svg class="i-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+          <svg class="i-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.6 5.6L4.2 4.2M19.8 19.8l-1.4-1.4M18.4 5.6l1.4-1.4M4.2 19.8l1.4-1.4"></path></svg>
+        </button>
+        <div id="apiStatus" class="mono" style="font-size:11.5px;color:var(--faint)"></div>
+      </div>
     </header>
 
     <div class="content">
@@ -283,7 +634,7 @@
         <div class="tabpane" id="tab-outstanding" style="display:none">
           <div class="card">
             <h3>Money unpaid / balance due</h3>
-            <div class="table-wrap"><table id="outstandingTable"><thead><tr><th>Customer</th><th>Mobile</th><th>Bills</th><th>Total unpaid (₹)</th></tr></thead><tbody></tbody></table></div>
+            <div class="table-wrap"><table id="outstandingTable"><thead><tr><th>Customer</th><th>Mobile</th><th>Bills</th><th>Total unpaid (<span class="cur-sym">₹</span>)</th></tr></thead><tbody></tbody></table></div>
           </div>
           <div class="card" style="margin-top:16px">
             <h3>🤖 AI: who pays on time, who doesn't</h3>
@@ -309,7 +660,22 @@
         </div>
         <button class="btn secondary" onclick="loadSales()">Apply filters</button>
         <div class="grid grid-4" style="margin:18px 0" id="salesStats"></div>
-        <h3 style="margin-bottom:10px">Bills</h3>
+
+        <div class="trend-head">
+          <div>
+            <h3>Monthly trends</h3>
+            <p>Revenue, collections and unpaid balance over time</p>
+          </div>
+          <div class="range-pills" id="trendRange">
+            <button data-range="6" onclick="setTrendRange('6')">Last 6 months</button>
+            <button class="active" data-range="12" onclick="setTrendRange('12')">Last 12 months</button>
+            <button data-range="all" onclick="setTrendRange('all')">All Time</button>
+          </div>
+        </div>
+        <div class="grid grid-4" style="margin-bottom:var(--gutter)" id="trendSummary"></div>
+        <div class="trend-grid" id="trendCharts"></div>
+
+        <h3 style="margin:26px 0 10px">Bills</h3>
         <div id="billsList"></div>
       </section>
 
@@ -328,13 +694,13 @@
         </div>
         <button class="btn secondary" onclick="loadDashboard()">Apply filters</button>
 
-        <h3 style="margin:18px 0 10px">💰 Profit &amp; Loss</h3>
+        <h3 style="margin:18px 0 10px">Profit &amp; Loss</h3>
         <div class="grid grid-4" id="dashStats"></div>
         <div id="dashCallout"></div>
 
-        <h3 style="margin:22px 0 10px">📦 Product performance</h3>
+        <h3 style="margin:22px 0 10px">Product performance</h3>
         <div class="grid grid-2">
-          <div class="card"><h3>🔥 Top selling products</h3><div id="topProducts"></div></div>
+          <div class="card"><h3>Top selling products</h3><div id="topProducts"></div></div>
           <div class="card"><h3>🐌 Not selling / slow-moving</h3><div id="slowProducts"></div></div>
         </div>
 
@@ -374,8 +740,8 @@
             <h3>Add a new product</h3>
             <div class="field"><label>Product name</label><input id="prodName"></div>
             <div class="row">
-              <div class="field"><label>Cost price (₹)</label><input id="prodCost" type="number" min="0" step="1" value="0"></div>
-              <div class="field"><label>Selling price (₹)</label><input id="prodSell" type="number" min="0" step="1" value="0"></div>
+              <div class="field"><label>Cost price (<span class="cur-sym">₹</span>)</label><input id="prodCost" type="number" min="0" step="1" value="0"></div>
+              <div class="field"><label>Selling price (<span class="cur-sym">₹</span>)</label><input id="prodSell" type="number" min="0" step="1" value="0"></div>
             </div>
             <div class="row">
               <div class="field"><label>Initial stock qty</label><input id="prodStock" type="number" min="0" step="1" value="0"></div>
@@ -402,7 +768,7 @@
           <div class="card">
             <h3>Ask the AI Coach</h3>
             <div class="chat-log" id="chatLog">
-              <div class="bubble ai">Hi! I can see your shop's live numbers — ask me about revenue, pricing, slow stock, or which customers to chase for payment.</div>
+              <div class="bubble ai">Hi! I can help you with revenue, pricing, slow stock, or which customers to chase for payment.</div>
             </div>
             <div class="chat-input">
               <input id="chatInput" placeholder="Ask something..." onkeydown="if(event.key==='Enter') sendChat()">
@@ -426,24 +792,442 @@
 </div>
 
 <script>
-const API_BASE = window.LEDGERLY_API_BASE || (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ? 'http://localhost:8000' : '');
+// ===================================================================
+// MOCK DATA LAYER — no backend required.
+// Everything below stands in for the API. To go live, delete this
+// block and restore the real fetch-based api() (see api() note below).
+// TODO: Replace mock data with backend API
+// ===================================================================
+const MOCK = {
+  customers: [
+    {id:1, name:'Rohan Sharma', mobile:'9876500001'},
+    {id:2, name:'Priya Verma',  mobile:'9876500002'},
+    {id:3, name:'Amit Singh',   mobile:'9876500003'},
+    {id:4, name:'Neha Gupta',   mobile:'9876500004'},
+  ],
+  products: [
+    {id:1, name:'Notebook',          cost_price:20,  sell_price:35,  stock_qty:50,  reorder_level:5},
+    {id:2, name:'Ballpoint Pen',     cost_price:5,   sell_price:10,  stock_qty:100, reorder_level:20},
+    {id:3, name:'Stapler',           cost_price:40,  sell_price:65,  stock_qty:20,  reorder_level:3},
+    {id:4, name:'A4 Paper Ream',     cost_price:180, sell_price:250, stock_qty:15,  reorder_level:3},
+    {id:5, name:'Whiteboard Marker', cost_price:15,  sell_price:30,  stock_qty:40,  reorder_level:8},
+    {id:6, name:'Sticky Notes Pack', cost_price:25,  sell_price:45,  stock_qty:30,  reorder_level:5},
+  ],
+  bills: [],       // filled as you finalize bills in the UI
+  billItems: {},   // bill id -> line items
+  nextCustomerId: 5,
+  nextProductId: 7,
+  nextBillId: 1,
+};
+
+const MOCK_AI = {
+  'payment-behavior': "Right now every customer is paid up, so there's no risk to flag yet.\n\nOnce a few bills go out on credit I'll rank who settles quickly and who drags, and point out anyone whose balance is getting large relative to what they've actually paid. A simple habit that helps: set an informal credit limit per customer and send a nudge at the 7-day mark.",
+  'stock-insights': "Nothing is critically low at the moment — every item is comfortably above its reorder level.\n\nTwo things worth watching: Ballpoint Pens (100 units against a reorder level of 20) and Notebooks (50 units) are your deepest stock, so I'd hold off reordering those. A4 Paper Ream sits at 15 with a reorder level of 3 — it's your highest-value item, so keep an eye on it once sales pick up.",
+  'sales-insights': "No sales recorded in this period yet, so there's nothing to judge performance on.\n\nOnce bills start coming through I'll tell you which products are actually carrying your profit and which are just taking up shelf space. Based on margins alone, Sticky Notes Pack (₹20/unit) and Whiteboard Marker (₹15/unit) are your best earners per sale — worth pushing first.",
+};
+
+// Topics this assistant is allowed to answer on. Anything outside this list
+// gets a polite refusal rather than a made-up answer.
+const BUSINESS_TOPICS = [
+  'invoice','invoices','bill','bills','billing','sale','sales','revenue','income','turnover',
+  'expense','expenses','cost','costs','spend','spending','profit','loss','margin','markup',
+  'price','pricing','discount','customer','customers','client','clients','payment','payments',
+  'paid','unpaid','owe','owes','owed','due','outstanding','balance','credit','collect',
+  'chase','stock','inventory','restock','reorder','product','products','item','items',
+  'supplier','vendor','purchase','analytics','report','reports','trend','trends','forecast',
+  'dashboard','cash','cashflow','money','budget','tax','gst','business','shop','store',
+  'performance','growth','slow','fast','selling','sell','order','orders','quantity','units',
+  'currency','month','monthly','week','weekly','today','summary','total',
+  'increase','raise','lower','reduce','charge','earn','owing','overdue','invoicing',
+];
+
+const OFF_TOPIC_REPLY = "I'm your Business Assistant, so I can help with invoices, expenses, customers, sales analytics, reports, and financial insights. I can't answer unrelated questions such as general knowledge or entertainment.";
+
+function isBusinessQuestion(text){
+  const l = text.toLowerCase();
+  // Substring match, so plurals and inflections ("prices", "margins",
+  // "discounts") resolve without enumerating every form.
+  return BUSINESS_TOPICS.some(k => l.includes(k));
+}
+
+// Answers are grounded in MOCK data only — never invented figures.
+function mockCoachReply(msg){
+  const l = msg.toLowerCase();
+
+  // Refuse anything outside the app's domain instead of hallucinating.
+  if(!isBusinessQuestion(msg)) return OFF_TOPIC_REPLY;
+
+  const bills = MOCK.bills;
+  const revenue = bills.reduce((s,b) => s + b.total_amount, 0);
+  const collected = bills.reduce((s,b) => s + b.paid_amount, 0);
+  const due = bills.reduce((s,b) => s + b.balance_due, 0);
+  const lowStock = MOCK.products.filter(p => p.stock_qty <= p.reorder_level);
+
+  if(l.includes('price') || l.includes('pricing') || l.includes('margin') || l.includes('discount')){
+    const best = MOCK.products.slice().sort((a,b) =>
+      ((b.sell_price - b.cost_price) / b.sell_price) - ((a.sell_price - a.cost_price) / a.sell_price))[0];
+    const pct = Math.round(((best.sell_price - best.cost_price) / best.sell_price) * 100);
+    return "Your margins are in decent shape — " + best.name + " is your strongest at about " + pct + "%. I wouldn't raise everything at once. Pick one or two fast movers, try a 3-5% increase, and watch whether volume holds for a couple of weeks before going wider.";
+  }
+  if(l.includes('profit') || l.includes('loss') || l.includes('grow') || l.includes('increase')){
+    const profit = revenue - bills.reduce((s,b) => {
+      return s + (MOCK.billItems[b.id] || []).reduce((t,i) => {
+        const p = MOCK.products.find(x => x.name === i.product_name);
+        return t + i.quantity * (p ? p.cost_price : 0);
+      }, 0);
+    }, 0);
+    return "Across all your billing so far you've done " + money(revenue) + " in revenue against roughly " + money(profit) + " in gross profit. The fastest lever right now is collection, not sales — " + money(due) + " is still sitting unpaid. Getting even half of that in beats chasing new orders this month.";
+  }
+  if(l.includes('chase') || l.includes('owe') || l.includes('unpaid') || l.includes('due') || l.includes('collect') || l.includes('payment')){
+    if(due <= 0) return "Nothing outstanding — every bill is settled. When that changes I'd start with whoever has the largest balance sitting past a week rather than chasing everyone at once.";
+    const worst = {};
+    bills.filter(b => b.balance_due > 0 && b.customer_name).forEach(b => {
+      worst[b.customer_name] = (worst[b.customer_name] || 0) + b.balance_due;
+    });
+    const ranked = Object.entries(worst).sort((a,b) => b[1] - a[1]);
+    const top = ranked.slice(0,2).map(r => r[0] + " (" + money(r[1]) + ")").join(' and ');
+    return money(due) + " is unpaid across " + ranked.length + " customers. Start with " + top + " — that's the bulk of it. A short, friendly reminder works better than a formal notice at this stage.";
+  }
+  if(l.includes('restock') || l.includes('reorder') || l.includes('stock') || l.includes('inventory')){
+    if(!lowStock.length){
+      const deepest = MOCK.products.slice().sort((a,b) => b.stock_qty - a.stock_qty)[0];
+      return "Nothing needs reordering today — everything is above its reorder level. " + deepest.name + " is your deepest at " + deepest.stock_qty + " units, so I'd hold off on that one. Check back once a few more bills go through.";
+    }
+    return "These are at or below their reorder level: " + lowStock.map(p => p.name + " (" + p.stock_qty + ")").join(', ') + ". I'd order those first and leave everything else alone this cycle.";
+  }
+  if(l.includes('slow') || l.includes('not selling') || l.includes('best') || l.includes('top')){
+    return "Open the Dashboard and set the period to All Time — the top-sellers and slow-movers panels there rank every product by units sold. Anything showing zero over a full quarter is worth discounting to clear rather than restocking.";
+  }
+  if(l.includes('revenue') || l.includes('sales') || l.includes('trend') || l.includes('month') || l.includes('analytics') || l.includes('report') || l.includes('summary')){
+    return "You're at " + money(revenue) + " billed and " + money(collected) + " actually collected, which is about " + Math.round((collected/(revenue||1))*100) + "% of what you invoiced. The Sales page now charts revenue, collections and unpaid balance month by month — the gap between the first two lines is the one to watch.";
+  }
+  if(l.includes('customer') || l.includes('client')){
+    return "You have " + MOCK.customers.length + " registered customers and " + bills.length + " bills on record. Worth knowing: walk-in sales can't carry a balance, so anyone you extend credit to should be registered first.";
+  }
+  return "I can dig into your sales, pricing, stock levels, profit, or unpaid balances. Tell me which of those you're thinking about and I'll give you something specific from your own numbers.";
+}
+
+// Deterministic pseudo-random so the demo numbers are stable across reloads.
+let _seed = 20260725;
+function rnd(){ _seed = (_seed * 1103515245 + 12345) & 0x7fffffff; return _seed / 0x7fffffff; }
+function pick(arr){ return arr[Math.floor(rnd() * arr.length)]; }
+
+// Twelve months of billing history. Historical bills do NOT move current
+// stock — stock_qty already reflects today's shelf count.
+// TODO: Replace mock data with backend API
+(function seedHistory(){
+  const now = new Date();
+  for(let back = 11; back >= 0; back--){
+    const month = new Date(now.getFullYear(), now.getMonth() - back, 1);
+    const billCount = 3 + Math.floor(rnd() * 4);                    // 3-6 bills a month
+    const growth = 1 + (11 - back) * 0.06;                          // gentle upward trend
+    for(let n = 0; n < billCount; n++){
+      const day = 2 + Math.floor(rnd() * 26);
+      const date = new Date(month.getFullYear(), month.getMonth(), day, 10 + Math.floor(rnd()*8), 15);
+      if(date > now) continue;
+      const lineCount = 1 + Math.floor(rnd() * 3);
+      const items = [];
+      let total = 0;
+      for(let k = 0; k < lineCount; k++){
+        const prod = pick(MOCK.products);
+        const qty = Math.max(1, Math.round((1 + rnd() * 5) * growth));
+        items.push({product_name: prod.name, quantity: qty, price_each: prod.sell_price});
+        total += qty * prod.sell_price;
+      }
+      const onCredit = rnd() < 0.28;                                // some bills go out unpaid
+      const cust = onCredit || rnd() < 0.6 ? pick(MOCK.customers) : null;
+      const paid = !cust ? total
+        : onCredit ? Math.round(total * (rnd() * 0.6)) : total;
+      const bill = {
+        id: MOCK.nextBillId++,
+        customer_id: cust ? cust.id : null,
+        customer_name: cust ? cust.name : null,
+        bill_date: date.toISOString().slice(0,19).replace('T',' '),
+        total_amount: total,
+        paid_amount: paid,
+        balance_due: Math.round((total - paid) * 100) / 100,
+        payment_mode: pick(['Cash','Card']),
+      };
+      MOCK.bills.push(bill);
+      MOCK.billItems[bill.id] = items;
+    }
+  }
+  MOCK.bills.sort((a,b) => a.bill_date < b.bill_date ? -1 : 1);
+})();
+
+function mockDelay(ms){ return new Promise(r => setTimeout(r, ms)); }
+function findProduct(id){ return MOCK.products.find(p => p.id === Number(id)); }
+function inRange(dateStr, start, end){
+  const d = String(dateStr).slice(0,10);
+  return (!start || d >= start) && (!end || d <= end);
+}
 const AVATAR_COLORS = ['#585F7C','#5237B2','#F59F00','#E64980','#7048E8','#12B886','#F76707'];
 function colorFor(name){ let h=0; for(const c of name) h = (h*31 + c.charCodeAt(0)) % AVATAR_COLORS.length; return AVATAR_COLORS[h]; }
 function initials(name){ return name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase(); }
-function inr(n){ return '₹' + Number(n||0).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+// ===================================================================
+// PREFERENCES — theme + currency, persisted in localStorage.
+// ===================================================================
+const STORE_KEYS = {theme:'ledgerly.theme', currency:'ledgerly.currency', range:'ledgerly.trendRange'};
+
+// 10 most commonly used currencies. `rate` is a placeholder of 1 so that
+// conversion can be layered in later without touching any call site:
+// swap in live rates and money() converts automatically.
+// TODO: Replace static rates with a live exchange-rate API
+const CURRENCIES = {
+  USD:{symbol:'$',  name:'US Dollar',        locale:'en-US', decimals:2, rate:1},
+  EUR:{symbol:'€',  name:'Euro',             locale:'de-DE', decimals:2, rate:1},
+  GBP:{symbol:'£',  name:'British Pound',    locale:'en-GB', decimals:2, rate:1},
+  JPY:{symbol:'¥',  name:'Japanese Yen',     locale:'ja-JP', decimals:0, rate:1},
+  CNY:{symbol:'¥',  name:'Chinese Yuan',     locale:'zh-CN', decimals:2, rate:1},
+  AUD:{symbol:'A$', name:'Australian Dollar',locale:'en-AU', decimals:2, rate:1},
+  CAD:{symbol:'C$', name:'Canadian Dollar',  locale:'en-CA', decimals:2, rate:1},
+  INR:{symbol:'₹',  name:'Indian Rupee',     locale:'en-IN', decimals:2, rate:1},
+  SGD:{symbol:'S$', name:'Singapore Dollar', locale:'en-SG', decimals:2, rate:1},
+  VND:{symbol:'₫',  name:'Vietnamese Dong',  locale:'vi-VN', decimals:0, rate:1},
+};
+let activeCurrency = 'INR';
+
+function currency(){ return CURRENCIES[activeCurrency] || CURRENCIES.INR; }
+
+function money(n){
+  const c = currency();
+  const value = Number(n || 0) * c.rate;
+  const num = value.toLocaleString(c.locale, {minimumFractionDigits:c.decimals, maximumFractionDigits:c.decimals});
+  return activeCurrency === 'VND' ? num + c.symbol : c.symbol + num;
+}
+// Legacy alias — every existing call site keeps working.
+const inr = money;
+
+function moneyShort(n){
+  const c = currency();
+  const v = Math.abs(Number(n || 0) * c.rate);
+  const s = v >= 1e7 ? (v/1e7).toFixed(1).replace(/\.0$/,'') + 'Cr'
+          : v >= 1e5 ? (v/1e5).toFixed(1).replace(/\.0$/,'') + 'L'
+          : v >= 1000 ? (v/1000).toFixed(1).replace(/\.0$/,'') + 'k'
+          : String(Math.round(v));
+  return activeCurrency === 'VND' ? s + c.symbol : c.symbol + s;
+}
+
+function setCurrency(code){
+  if(!CURRENCIES[code]) return;
+  activeCurrency = code;
+  try{ localStorage.setItem(STORE_KEYS.currency, code); }catch(e){}
+  applyCurrency();
+  refreshCurrentPage();
+}
+
+function applyCurrency(){
+  const sel = document.getElementById('currencySelect');
+  if(sel){
+    if(!sel.options.length){
+      sel.innerHTML = Object.keys(CURRENCIES)
+        .map(code => '<option value="' + code + '">' + code + ' ' + CURRENCIES[code].symbol + '</option>').join('');
+    }
+    sel.value = activeCurrency;
+    sel.title = currency().name;
+  }
+  document.querySelectorAll('.cur-sym').forEach(el => { el.textContent = currency().symbol; });
+}
+
+function setTheme(mode){
+  document.documentElement.setAttribute('data-theme', mode);
+  try{ localStorage.setItem(STORE_KEYS.theme, mode); }catch(e){}
+  const btn = document.getElementById('themeToggle');
+  if(btn) btn.setAttribute('aria-pressed', String(mode === 'dark'));
+  renderTrends();                                     // charts read colors from CSS vars
+}
+function toggleTheme(){
+  setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+
+function initPreferences(){
+  let theme = null, cur = null, range = null;
+  try{
+    theme = localStorage.getItem(STORE_KEYS.theme);
+    cur = localStorage.getItem(STORE_KEYS.currency);
+    range = localStorage.getItem(STORE_KEYS.range);
+  }catch(e){}
+  if(!theme) theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  if(cur && CURRENCIES[cur]) activeCurrency = cur;
+  if(range) trendRange = range;
+  document.documentElement.setAttribute('data-theme', theme);
+  applyCurrency();
+  document.querySelectorAll('#trendRange button').forEach(b =>
+    b.classList.toggle('active', b.dataset.range === trendRange));
+}
+
+// Re-render whichever page is showing (used after a preference change).
+function refreshCurrentPage(){
+  const active = document.querySelector('.page.active');
+  const page = active ? active.id.replace('page-', '') : 'home';
+  const loaders = {home:loadHome, billing:loadBillingTab, sales:loadSales, dashboard:loadDashboard, stock:loadStock};
+  if(loaders[page]) loaders[page]();
+}
+
+function cssVar(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
+// Mock stand-in for the real API. Same signature as the live version, so
+// every caller below is untouched. The live version was:
+//   const res = await fetch(API_BASE + path, {headers:{'Content-Type':'application/json'}, ...opts});
+//   if(!res.ok) throw new Error((await res.json()).detail || 'Request failed');
+//   return res.status === 204 ? null : res.json();
 async function api(path, opts={}){
-  const res = await fetch(API_BASE + path, {
-    headers: {'Content-Type':'application/json'},
-    ...opts,
-  });
-  if(!res.ok){
-    let detail = 'Request failed';
-    try{ detail = (await res.json()).detail || detail; }catch(e){}
-    throw new Error(detail);
+  await mockDelay(140);                                  // simulated latency
+  const method = (opts.method || 'GET').toUpperCase();
+  const body = opts.body ? JSON.parse(opts.body) : {};
+  const [route, qs] = path.split('?');
+  const q = new URLSearchParams(qs || '');
+  const start = q.get('start_date'), end = q.get('end_date');
+  const m = (re) => route.match(re);
+
+  // ---- Summary ----
+  if(route === '/api/summary'){
+    return {
+      total_customers: MOCK.customers.length,
+      total_products: MOCK.products.length,
+      total_bills: MOCK.bills.length,
+      total_due: MOCK.bills.reduce((s,b) => s + b.balance_due, 0),
+    };
   }
-  return res.status === 204 ? null : res.json();
+
+  // ---- Customers ----
+  if(route === '/api/customers/outstanding'){
+    const byCustomer = {};
+    MOCK.bills.filter(b => b.balance_due > 0 && b.customer_id).forEach(b => {
+      const c = MOCK.customers.find(x => x.id === b.customer_id);
+      if(!c) return;
+      byCustomer[c.id] = byCustomer[c.id] || {name:c.name, mobile:c.mobile, bill_count:0, total_due:0};
+      byCustomer[c.id].bill_count++;
+      byCustomer[c.id].total_due += b.balance_due;
+    });
+    return Object.values(byCustomer).sort((a,b) => b.total_due - a.total_due);
+  }
+  if(route === '/api/customers' && method === 'GET') return MOCK.customers.slice();
+  if(route === '/api/customers' && method === 'POST'){
+    if(MOCK.customers.some(c => c.mobile === body.mobile))
+      throw new Error('A customer with this mobile number already exists.');
+    const c = {id: MOCK.nextCustomerId++, name: body.name, mobile: body.mobile};
+    MOCK.customers.push(c);
+    return c;
+  }
+
+  // ---- Products ----
+  if(route === '/api/products/low-stock')
+    return MOCK.products.filter(p => p.stock_qty <= p.reorder_level);
+  if(route === '/api/products' && method === 'GET') return MOCK.products.slice();
+  if(route === '/api/products' && method === 'POST'){
+    const p = {
+      id: MOCK.nextProductId++, name: body.name,
+      cost_price: body.cost_price, sell_price: body.sell_price,
+      stock_qty: body.stock_qty, reorder_level: body.reorder_level,
+    };
+    MOCK.products.push(p);
+    return {id: p.id, warning: p.sell_price < p.cost_price};
+  }
+  if(m(/^\/api\/products\/(\d+)\/restock$/) && method === 'POST'){
+    const p = findProduct(m(/^\/api\/products\/(\d+)\/restock$/)[1]);
+    if(!p) throw new Error('Product not found.');
+    p.stock_qty += Number(body.qty || 0);
+    return p;
+  }
+
+  // ---- Bills ----
+  if(m(/^\/api\/bills\/(\d+)\/items$/) && method === 'GET')
+    return MOCK.billItems[m(/^\/api\/bills\/(\d+)\/items$/)[1]] || [];
+  if(m(/^\/api\/bills\/(\d+)\/payments$/) && method === 'POST'){
+    const id = Number(m(/^\/api\/bills\/(\d+)\/payments$/)[1]);
+    const bill = MOCK.bills.find(b => b.id === id);
+    if(!bill) throw new Error('Bill not found.');
+    const amt = Number(body.amount || 0);
+    if(amt > bill.balance_due) throw new Error('Amount is more than the balance due.');
+    bill.paid_amount += amt;
+    bill.balance_due = Math.round((bill.balance_due - amt) * 100) / 100;
+    return bill;
+  }
+  if(route === '/api/bills' && method === 'GET'){
+    const cid = q.get('customer_id');
+    return MOCK.bills
+      .filter(b => inRange(b.bill_date, start, end))
+      .filter(b => !cid || b.customer_id === Number(cid))
+      .sort((a,b) => b.id - a.id);
+  }
+  if(route === '/api/bills' && method === 'POST'){
+    const items = body.items || [];
+    const total = items.reduce((s,i) => s + i.quantity * i.price_each, 0);
+    const paid = Number(body.paid_amount || 0);
+    const cust = MOCK.customers.find(c => c.id === body.customer_id);
+    const bill = {
+      id: MOCK.nextBillId++,
+      customer_id: body.customer_id || null,
+      customer_name: cust ? cust.name : null,
+      bill_date: new Date().toISOString().slice(0,19).replace('T',' '),
+      total_amount: total, paid_amount: paid,
+      balance_due: Math.round((total - paid) * 100) / 100,
+      payment_mode: body.payment_mode,
+    };
+    MOCK.bills.push(bill);
+    MOCK.billItems[bill.id] = items.map(i => {
+      const p = findProduct(i.product_id);
+      if(p) p.stock_qty -= i.quantity;                   // stock moves with the sale
+      return {product_name: p ? p.name : 'Item', quantity: i.quantity, price_each: i.price_each};
+    });
+    return bill;
+  }
+
+  // ---- Sales summary ----
+  if(route === '/api/sales/summary'){
+    const rows = MOCK.bills.filter(b => inRange(b.bill_date, start, end));
+    return {
+      revenue: rows.reduce((s,b) => s + b.total_amount, 0),
+      collected: rows.reduce((s,b) => s + b.paid_amount, 0),
+      outstanding: rows.reduce((s,b) => s + b.balance_due, 0),
+      bill_count: rows.length,
+    };
+  }
+
+  // ---- Dashboard ----
+  if(route === '/api/dashboard/profit-loss'){
+    const rows = MOCK.bills.filter(b => inRange(b.bill_date, start, end));
+    let revenue = 0, cost = 0;
+    rows.forEach(b => (MOCK.billItems[b.id] || []).forEach(i => {
+      const p = MOCK.products.find(x => x.name === i.product_name);
+      revenue += i.quantity * i.price_each;
+      cost += i.quantity * (p ? p.cost_price : 0);
+    }));
+    return {revenue, cost, profit: revenue - cost};
+  }
+  if(route === '/api/dashboard/product-ranking'){
+    const rows = MOCK.bills.filter(b => inRange(b.bill_date, start, end));
+    const sold = {};
+    rows.forEach(b => (MOCK.billItems[b.id] || []).forEach(i => {
+      sold[i.product_name] = sold[i.product_name] || {units:0, revenue:0};
+      sold[i.product_name].units += i.quantity;
+      sold[i.product_name].revenue += i.quantity * i.price_each;
+    }));
+    return MOCK.products
+      .map(p => ({
+        id: p.id, name: p.name,
+        units_sold: sold[p.name] ? sold[p.name].units : 0,
+        revenue: sold[p.name] ? sold[p.name].revenue : 0,
+      }))
+      .sort((a,b) => b.units_sold - a.units_sold);
+  }
+
+  // ---- AI (placeholder responses only — no AI logic here) ----
+  if(route === '/api/ai/coach'){
+    await mockDelay(500);
+    return {text: mockCoachReply(body.message || '')};
+  }
+  if(route.startsWith('/api/ai/')){
+    await mockDelay(500);
+    const key = route.replace('/api/ai/', '');
+    return {insight: MOCK_AI[key] || 'No insight available for this request yet.'};
+  }
+
+  throw new Error('Unknown endpoint: ' + path);
 }
 
 // ---------- Navigation ----------
@@ -591,6 +1375,7 @@ async function finalizeBill(){
     document.getElementById('billStatus').innerHTML = `<div class="callout success">Bill #${res.id} created successfully! 🎉</div>`;
     cart = []; renderCart();
     loadBillingTab();
+    renderTrends();
   }catch(e){ document.getElementById('billStatus').innerHTML = `<div class="callout error">${e.message}</div>`; }
 }
 
@@ -604,7 +1389,7 @@ async function renderOutstanding(){
 async function renderUnpaidBills(){
   const bills = (await api('/api/bills')).filter(b => b.balance_due > 0);
   const wrap = document.getElementById('unpaidBillsWrap');
-  if(bills.length===0){ wrap.innerHTML = "<p class=\"empty\">No outstanding bills. Everyone's paid up! 🎉</p>"; return; }
+  if(bills.length===0){ wrap.innerHTML = "<p class=\"empty\">No outstanding bills</p>"; return; }
   wrap.innerHTML = `
     <div class="field"><label>Select bill</label>
       <select id="payBillSelect">${bills.map(b => `<option value="${b.id}" data-due="${b.balance_due}">Bill #${b.id} — ${b.customer_name||'Walk-in'} — due ${inr(b.balance_due)}</option>`).join('')}</select>
@@ -630,6 +1415,7 @@ async function recordPayment(){
     await api(`/api/bills/${billId}/payments`, {method:'POST', body: JSON.stringify({amount, mode})});
     statusEl.innerHTML = `<div class="callout success">Recorded ${inr(amount)} against Bill #${billId}.</div>`;
     renderUnpaidBills(); renderOutstanding();
+    renderTrends();
   }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
 }
 
@@ -670,6 +1456,7 @@ async function loadSales(){
     ${statCard('Outstanding', inr(summary.outstanding))}
     ${statCard('Bills', summary.bill_count)}
   `;
+  renderTrends();                    // charts follow the latest bills/payments
 
   const listEl = document.getElementById('billsList');
   if(bills.length===0){ listEl.innerHTML = '<p class="empty">No sales in this period.</p>'; return; }
@@ -682,6 +1469,165 @@ async function loadSales(){
       <p style="margin:10px 0 0;font-size:13px">Paid: ${inr(b.paid_amount)} | Balance due: ${inr(b.balance_due)} | Mode: ${b.payment_mode||'—'}</p>
     </div>`;
   }))).join('');
+}
+
+// ---------- Monthly trend analytics ----------
+let trendRange = '12';
+
+function setTrendRange(range){
+  trendRange = range;
+  try{ localStorage.setItem(STORE_KEYS.range, range); }catch(e){}
+  document.querySelectorAll('#trendRange button').forEach(b =>
+    b.classList.toggle('active', b.dataset.range === range));
+  renderTrends();
+}
+
+// Buckets every bill into its calendar month. Reads MOCK.bills directly, so
+// it always reflects the latest invoices and payments.
+function monthlyTrends(range){
+  if(!MOCK.bills.length) return [];
+  const buckets = {};
+  MOCK.bills.forEach(b => {
+    const key = String(b.bill_date).slice(0,7);
+    buckets[key] = buckets[key] || {revenue:0, collected:0, outstanding:0, bills:0};
+    buckets[key].revenue += b.total_amount;
+    buckets[key].collected += b.paid_amount;
+    buckets[key].outstanding += b.balance_due;
+    buckets[key].bills++;
+  });
+
+  const keys = Object.keys(buckets).sort();
+  const now = new Date();
+  let months = [];
+  if(range === 'all'){
+    const first = keys[0].split('-');
+    let cursor = new Date(Number(first[0]), Number(first[1]) - 1, 1);
+    while(cursor <= now){
+      months.push(cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2,'0'));
+      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    }
+  }else{
+    const count = Number(range);
+    for(let back = count - 1; back >= 0; back--){
+      const d = new Date(now.getFullYear(), now.getMonth() - back, 1);
+      months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0'));
+    }
+  }
+
+  return months.map(key => {
+    const parts = key.split('-');
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
+    const bucket = buckets[key] || {revenue:0, collected:0, outstanding:0, bills:0};
+    return {
+      key,
+      label: d.toLocaleDateString('en-US', {month:'short'}),
+      full: d.toLocaleDateString('en-US', {month:'short', year:'numeric'}),
+      revenue: bucket.revenue,
+      collected: bucket.collected,
+      outstanding: bucket.outstanding,
+      bills: bucket.bills,
+    };
+  });
+}
+
+// Smooth SVG line + area chart with per-month hover tooltips. No libraries.
+function lineChart(rows, valueKey, color){
+  const W = 600, H = 170, top = 10, bottom = 8;
+  const values = rows.map(r => r[valueKey]);
+  const max = Math.max.apply(null, values.concat([1])) * 1.15;
+  const n = rows.length;
+  const X = i => n === 1 ? W / 2 : (i * W) / (n - 1);
+  const Y = v => top + (1 - v / max) * (H - top - bottom);
+
+  const pts = rows.map((r, i) => [X(i), Y(r[valueKey])]);
+  let path = '';
+  pts.forEach((p, i) => {
+    if(i === 0){ path += 'M' + p[0].toFixed(1) + ' ' + p[1].toFixed(1); return; }
+    const prev = pts[i - 1];
+    const cx = (prev[0] + p[0]) / 2;
+    path += ' C' + cx.toFixed(1) + ' ' + prev[1].toFixed(1) + ',' + cx.toFixed(1) + ' ' + p[1].toFixed(1) + ',' + p[0].toFixed(1) + ' ' + p[1].toFixed(1);
+  });
+
+  const gridColor = cssVar('--border') || '#e6eaee';
+  let grid = '';
+  for(let g = 0; g <= 3; g++){
+    const gy = top + (g / 3) * (H - top - bottom);
+    grid += '<line x1="0" y1="' + gy.toFixed(1) + '" x2="' + W + '" y2="' + gy.toFixed(1) + '" stroke="' + gridColor + '" stroke-width="1" vector-effect="non-scaling-stroke"/>';
+  }
+
+  const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Monthly trend chart">' +
+    grid +
+    '<path d="' + path + ' L ' + W + ' ' + H + ' L 0 ' + H + ' Z" fill="' + color + '" fill-opacity="0.12"/>' +
+    '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>' +
+    '</svg>';
+
+  const cells = rows.map((r, i) =>
+    '<div class="chart-cell">' +
+      '<span class="chart-dot" style="background:' + color + '; top:' + ((pts[i][1] / H) * 100).toFixed(2) + '%"></span>' +
+      '<span class="chart-tip"><span class="ct-m">' + r.full + '</span>' +
+      '<span class="ct-v" style="color:' + color + '">' + money(r[valueKey]) + '</span></span>' +
+    '</div>').join('');
+
+  const step = n > 1 ? 100 / (n - 1) : 50;
+  const labels = rows.map((r, i) =>
+    '<span style="left:' + (n === 1 ? 50 : i * step).toFixed(2) + '%">' + r.label + '</span>').join('');
+
+  return '<div class="chart-wrap"><div class="chart-plot">' + svg +
+    '<div class="chart-hover">' + cells + '</div></div>' +
+    '<div class="chart-xlabels">' + labels + '</div></div>';
+}
+
+function trendCard(title, subtitle, valueKey, rows, color, invertDelta){
+  const values = rows.map(r => r[valueKey]);
+  const total = values.reduce((s, v) => s + v, 0);
+  const last = values[values.length - 1] || 0;
+  const prev = values[values.length - 2] || 0;
+  let delta = '';
+  if(prev > 0){
+    const pct = ((last - prev) / prev) * 100;
+    const up = pct >= 0;
+    const good = invertDelta ? !up : up;
+    delta = '<div class="tc-delta" style="color:' + (good ? 'var(--pos)' : 'var(--neg)') + '">' +
+      (up ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(1) + '% vs last month</div>';
+  }
+  return '<div class="trend-card"><div class="tc-head">' +
+    '<div><div class="tc-title"><i style="background:' + color + '"></i>' + title + '</div>' +
+    '<div class="tc-sub">' + subtitle + '</div></div>' +
+    '<div><div class="tc-value" style="color:' + color + '">' + money(total) + '</div>' + delta + '</div>' +
+    '</div>' + lineChart(rows, valueKey, color) + '</div>';
+}
+
+function renderTrends(){
+  const chartsEl = document.getElementById('trendCharts');
+  const summaryEl = document.getElementById('trendSummary');
+  if(!chartsEl || !summaryEl) return;
+
+  const rows = monthlyTrends(trendRange);
+  if(!rows.length){
+    summaryEl.innerHTML = '';
+    chartsEl.innerHTML = '<p class="empty">No billing history yet — trends appear once you create bills.</p>';
+    return;
+  }
+
+  const sum = key => rows.reduce((s, r) => s + r[key], 0);
+  const revenue = sum('revenue'), collected = sum('collected'), outstanding = sum('outstanding');
+  const withData = rows.filter(r => r.bills > 0).length || 1;
+  const rate = revenue > 0 ? (collected / revenue) * 100 : 0;
+
+  summaryEl.innerHTML =
+    statCard('Total revenue', money(revenue)) +
+    statCard('Total collected', money(collected) + ' · ' + rate.toFixed(0) + '%') +
+    statCard('Unpaid balance', money(outstanding)) +
+    statCard('Avg / month', money(revenue / withData));
+
+  const brand = cssVar('--brand') || '#0f8a6b';
+  const info = cssVar('--info') || '#2f7bbf';
+  const neg = cssVar('--neg') || '#d1495b';
+
+  chartsEl.innerHTML =
+    trendCard('Total Revenue', 'Billed per month', 'revenue', rows, brand) +
+    trendCard('Amount Collected', 'Payments received', 'collected', rows, info) +
+    trendCard('Outstanding Balance', 'Unpaid bills', 'outstanding', rows, neg, true);
 }
 
 // ---------- Dashboard ----------
@@ -812,6 +1758,7 @@ function appendBubble(text, who){
 function askSuggested(q){ document.getElementById('chatInput').value = q; sendChat(); }
 
 // ---------- Init ----------
+initPreferences();
 loadHome();
 </script>
 </body>
