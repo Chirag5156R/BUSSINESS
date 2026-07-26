@@ -144,8 +144,7 @@ def products_with_image_data(products: List[dict]) -> List[dict]:
 # ---------------------------------------------------------------------------
 # Auth / users
 # ---------------------------------------------------------------------------
-email="xyz.com"
-password="admin123"
+
 
 def hash_password(password: str, salt: Optional[str] = None) -> tuple:
     if salt is None:
@@ -159,7 +158,7 @@ def db_create_user(business_name, email, password):
     with get_connection() as conn:
         try:
             cur = conn.execute(
-                "INSERT INTO users (business_name, email, password_hash, password_salt) VALUES (?, ?, ?, ?)",
+                "INSERT INTO users (business_name, email, password_hash, password_salt) VALUES (%s, %s, %s, %s)",
                 (business_name, email.lower(), password_hash, salt),
             )
             conn.commit()
@@ -171,7 +170,7 @@ def db_create_user(business_name, email, password):
 def db_get_user_by_email(email):
     with get_connection() as conn:
         return row_to_dict(conn.execute(
-            "SELECT * FROM users WHERE email = ?", (email.lower(),)
+            "SELECT * FROM users WHERE email = %s", (email.lower(),)
         ).fetchone())
 
 
@@ -190,7 +189,7 @@ def db_create_session(user_id):
     expires_at = (datetime.datetime.now() + datetime.timedelta(days=SESSION_LIFETIME_DAYS)).isoformat()
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (%s, %s, %s)",
             (token, user_id, expires_at),
         )
         conn.commit()
@@ -202,13 +201,13 @@ def db_get_session_user(token):
         row = conn.execute("""
             SELECT users.id, users.business_name, users.email, sessions.expires_at
             FROM sessions JOIN users ON sessions.user_id = users.id
-            WHERE sessions.token = ?
+            WHERE sessions.token = %s
         """, (token,)).fetchone()
         if row is None:
             return None
         row = dict(row)
         if datetime.datetime.fromisoformat(row["expires_at"]) < datetime.datetime.now():
-            conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            conn.execute("DELETE FROM sessions WHERE token = %s", (token,))
             conn.commit()
             return None
         return row
@@ -216,7 +215,7 @@ def db_get_session_user(token):
 
 def db_delete_session(token):
     with get_connection() as conn:
-        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.execute("DELETE FROM sessions WHERE token = %s", (token,))
         conn.commit()
 
 
@@ -227,7 +226,7 @@ def db_delete_session(token):
 def db_add_customer(user_id, name, mobile):
     with get_connection() as conn:
         try:
-            cur = conn.execute("INSERT INTO customers (user_id, name, mobile) VALUES (?, ?, ?)",
+            cur = conn.execute("INSERT INTO customers (user_id, name, mobile) VALUES (%s, %s, %s)",
                                 (user_id, name, mobile))
             conn.commit()
             return cur.lastrowid
@@ -238,7 +237,7 @@ def db_add_customer(user_id, name, mobile):
 def db_get_all_customers(user_id):
     with get_connection() as conn:
         return rows_to_list(conn.execute(
-            "SELECT * FROM customers WHERE user_id = ? ORDER BY name", (user_id,)
+            "SELECT * FROM customers WHERE user_id = %s ORDER BY name", (user_id,)
         ).fetchall())
 
 
@@ -249,7 +248,7 @@ def db_get_outstanding_balances(user_id):
                    SUM(bills.balance_due) AS total_due,
                    COUNT(bills.id) AS bill_count
             FROM bills JOIN customers ON bills.customer_id = customers.id
-            WHERE bills.balance_due > 0 AND bills.user_id = ?
+            WHERE bills.balance_due > 0 AND bills.user_id = %s
             GROUP BY customers.id
             ORDER BY total_due DESC
         """, (user_id,)).fetchall())
@@ -265,7 +264,7 @@ def db_get_customer_payment_history(user_id):
                    SUM(bills.balance_due) AS total_due,
                    SUM(CASE WHEN bills.balance_due > 0 THEN 1 ELSE 0 END) AS unpaid_bill_count
             FROM customers LEFT JOIN bills ON customers.id = bills.customer_id
-            WHERE customers.user_id = ?
+            WHERE customers.user_id = %s
             GROUP BY customers.id
             HAVING total_bills > 0
             ORDER BY total_due DESC
@@ -280,7 +279,7 @@ def db_add_product(user_id, name, cost_price, sell_price, stock_qty, reorder_lev
     with get_connection() as conn:
         cur = conn.execute(
             """INSERT INTO products (user_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
             (user_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path),
         )
         conn.commit()
@@ -290,7 +289,7 @@ def db_add_product(user_id, name, cost_price, sell_price, stock_qty, reorder_lev
 def db_update_stock(user_id, product_id, qty_change):
     with get_connection() as conn:
         cur = conn.execute(
-            "UPDATE products SET stock_qty = stock_qty + ? WHERE id = ? AND user_id = ?",
+            "UPDATE products SET stock_qty = stock_qty + %s WHERE id = %s AND user_id = %s",
             (qty_change, product_id, user_id),
         )
         conn.commit()
@@ -302,44 +301,44 @@ def db_update_product(user_id, product_id, name, cost_price, sell_price, stock_q
     with get_connection() as conn:
         if image_path is not None:
             cur = conn.execute(
-                """UPDATE products SET name=?, cost_price=?, sell_price=?, stock_qty=?,
-                       reorder_level=?, image_path=? WHERE id=? AND user_id=?""",
+                """UPDATE products SET name=%s, cost_price=%s, sell_price=%s, stock_qty=%s,
+                       reorder_level=%s, image_path=%s WHERE id=%s AND user_id=%s""",
                 (name, cost_price, sell_price, stock_qty, reorder_level, image_path, product_id, user_id),
             )
         else:
             cur = conn.execute(
-                """UPDATE products SET name=?, cost_price=?, sell_price=?, stock_qty=?,
-                       reorder_level=? WHERE id=? AND user_id=?""",
+                """UPDATE products SET name=%s, cost_price=%s, sell_price=%s, stock_qty=%s,
+                       reorder_level=%s WHERE id=%s AND user_id=%s""",
                 (name, cost_price, sell_price, stock_qty, reorder_level, product_id, user_id),
             )
         conn.commit()
         if cur.rowcount == 0:
             raise KeyError("product not found")
         return row_to_dict(conn.execute(
-            "SELECT * FROM products WHERE id=? AND user_id=?", (product_id, user_id)
+            "SELECT * FROM products WHERE id=%s AND user_id=%s", (product_id, user_id)
         ).fetchone())
 
 
 def db_delete_product(user_id, product_id):
     with get_connection() as conn:
         owned = conn.execute(
-            "SELECT id FROM products WHERE id = ? AND user_id = ?", (product_id, user_id)
+            "SELECT id FROM products WHERE id = %s AND user_id = %s", (product_id, user_id)
         ).fetchone()
         if owned is None:
             raise KeyError("product not found")
         in_use = conn.execute(
-            "SELECT COUNT(*) FROM bill_items WHERE product_id = ?", (product_id,)
+            "SELECT COUNT(*) FROM bill_items WHERE product_id = %s", (product_id,)
         ).fetchone()[0]
         if in_use:
             raise ValueError("This product appears on existing bills and can't be deleted.")
-        conn.execute("DELETE FROM products WHERE id = ? AND user_id = ?", (product_id, user_id))
+        conn.execute("DELETE FROM products WHERE id = %s AND user_id = %s", (product_id, user_id))
         conn.commit()
 
 
 def db_get_all_products(user_id):
     with get_connection() as conn:
         return rows_to_list(conn.execute(
-            "SELECT * FROM products WHERE user_id = ? ORDER BY name", (user_id,)
+            "SELECT * FROM products WHERE user_id = %s ORDER BY name", (user_id,)
         ).fetchall())
 
 
@@ -359,7 +358,7 @@ def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
     with get_connection() as conn:
         if customer_id is not None:
             owned = conn.execute(
-                "SELECT id FROM customers WHERE id = ? AND user_id = ?", (customer_id, user_id)
+                "SELECT id FROM customers WHERE id = %s AND user_id = %s", (customer_id, user_id)
             ).fetchone()
             if owned is None:
                 raise ValueError("Customer not found")
@@ -369,14 +368,14 @@ def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
 
         cur = conn.execute(
             """INSERT INTO bills (user_id, customer_id, total_amount, paid_amount, balance_due, payment_mode)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s, %s)""",
             (user_id, customer_id, total_amount, paid_amount, balance_due, payment_mode),
         )
         bill_id = cur.lastrowid
 
         for item in items:
             prod = conn.execute(
-                "SELECT stock_qty FROM products WHERE id = ? AND user_id = ?",
+                "SELECT stock_qty FROM products WHERE id = %s AND user_id = %s",
                 (item["product_id"], user_id),
             ).fetchone()
             if prod is None:
@@ -386,14 +385,14 @@ def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
 
             conn.execute(
                 """INSERT INTO bill_items (bill_id, product_id, quantity, price_each, cost_each)
-                   VALUES (?, ?, ?, ?, ?)""",
+                   VALUES (%s, %s, %s, %s, %s)""",
                 (bill_id, item["product_id"], item["quantity"], item["price_each"], item["cost_each"]),
             )
-            conn.execute("UPDATE products SET stock_qty = stock_qty - ? WHERE id = ?",
+            conn.execute("UPDATE products SET stock_qty = stock_qty - %s WHERE id = %s",
                          (item["quantity"], item["product_id"]))
 
         if paid_amount > 0:
-            conn.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (?, ?, ?)",
+            conn.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (%s, %s, %s)",
                          (bill_id, paid_amount, payment_mode))
 
         conn.commit()
@@ -403,13 +402,13 @@ def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
 def db_add_payment(user_id, bill_id, amount, mode):
     with get_connection() as conn:
         bill = conn.execute(
-            "SELECT balance_due FROM bills WHERE id = ? AND user_id = ?", (bill_id, user_id)
+            "SELECT balance_due FROM bills WHERE id = %s AND user_id = %s", (bill_id, user_id)
         ).fetchone()
         if bill is None:
             raise KeyError("bill not found")
-        conn.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (?, ?, ?)", (bill_id, amount, mode))
+        conn.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (%s, %s, %s)", (bill_id, amount, mode))
         conn.execute(
-            "UPDATE bills SET paid_amount = paid_amount + ?, balance_due = balance_due - ? WHERE id = ?",
+            "UPDATE bills SET paid_amount = paid_amount + %s, balance_due = balance_due - %s WHERE id = %s",
             (amount, amount, bill_id),
         )
         conn.commit()
@@ -420,17 +419,17 @@ def db_get_bills(user_id, start_date=None, end_date=None, customer_id=None):
         query = """
             SELECT bills.*, customers.name AS customer_name, customers.mobile AS customer_mobile
             FROM bills LEFT JOIN customers ON bills.customer_id = customers.id
-            WHERE bills.user_id = ?
+            WHERE bills.user_id = %s
         """
         params = [user_id]
         if start_date:
-            query += " AND date(bill_date) >= date(?)"
+            query += " AND date(bill_date) >= date(%s)"
             params.append(start_date)
         if end_date:
-            query += " AND date(bill_date) <= date(?)"
+            query += " AND date(bill_date) <= date(%s)"
             params.append(end_date)
         if customer_id:
-            query += " AND bills.customer_id = ?"
+            query += " AND bills.customer_id = %s"
             params.append(customer_id)
         query += " ORDER BY bills.bill_date DESC"
         return rows_to_list(conn.execute(query, params).fetchall())
@@ -439,14 +438,14 @@ def db_get_bills(user_id, start_date=None, end_date=None, customer_id=None):
 def db_get_bill_items(user_id, bill_id):
     with get_connection() as conn:
         owned = conn.execute(
-            "SELECT id FROM bills WHERE id = ? AND user_id = ?", (bill_id, user_id)
+            "SELECT id FROM bills WHERE id = %s AND user_id = %s", (bill_id, user_id)
         ).fetchone()
         if owned is None:
             raise KeyError("bill not found")
         return rows_to_list(conn.execute(
             """SELECT bill_items.*, products.name AS product_name
                FROM bill_items JOIN products ON bill_items.product_id = products.id
-               WHERE bill_id = ?""",
+               WHERE bill_id = %s""",
             (bill_id,),
         ).fetchall())
 
@@ -463,7 +462,7 @@ def db_get_sales_summary(user_id, start_date, end_date):
                    COALESCE(SUM(balance_due), 0) AS outstanding,
                    COUNT(*) AS bill_count
             FROM bills
-            WHERE user_id = ? AND date(bill_date) BETWEEN date(?) AND date(?)
+            WHERE user_id = %s AND date(bill_date) BETWEEN date(%s) AND date(%s)
         """, (user_id, start_date, end_date)).fetchone()
         return dict(row)
 
@@ -475,7 +474,7 @@ def db_get_profit_loss(user_id, start_date, end_date):
                 COALESCE(SUM(bill_items.quantity * bill_items.price_each), 0) AS revenue,
                 COALESCE(SUM(bill_items.quantity * bill_items.cost_each), 0) AS cost
             FROM bill_items JOIN bills ON bill_items.bill_id = bills.id
-            WHERE bills.user_id = ? AND date(bills.bill_date) BETWEEN date(?) AND date(?)
+            WHERE bills.user_id = %s AND date(bills.bill_date) BETWEEN date(%s) AND date(%s)
         """, (user_id, start_date, end_date)).fetchone()
         revenue = row["revenue"] or 0
         cost = row["cost"] or 0
@@ -491,8 +490,8 @@ def db_get_product_sales_ranking(user_id, start_date, end_date):
             FROM products
             LEFT JOIN bill_items ON products.id = bill_items.product_id
             LEFT JOIN bills ON bill_items.bill_id = bills.id
-                AND date(bills.bill_date) BETWEEN date(?) AND date(?)
-            WHERE products.user_id = ?
+                AND date(bills.bill_date) BETWEEN date(%s) AND date(%s)
+            WHERE products.user_id = %s
             GROUP BY products.id
             ORDER BY units_sold DESC
         """, (start_date, end_date, user_id)).fetchall())
@@ -501,13 +500,13 @@ def db_get_product_sales_ranking(user_id, start_date, end_date):
 def db_get_home_summary(user_id):
     with get_connection() as conn:
         total_customers = conn.execute(
-            "SELECT COUNT(*) FROM customers WHERE user_id = ?", (user_id,)).fetchone()[0]
+            "SELECT COUNT(*) FROM customers WHERE user_id = %s", (user_id,)).fetchone()[0]
         total_products = conn.execute(
-            "SELECT COUNT(*) FROM products WHERE user_id = ?", (user_id,)).fetchone()[0]
+            "SELECT COUNT(*) FROM products WHERE user_id = %s", (user_id,)).fetchone()[0]
         total_bills = conn.execute(
-            "SELECT COUNT(*) FROM bills WHERE user_id = ?", (user_id,)).fetchone()[0]
+            "SELECT COUNT(*) FROM bills WHERE user_id = %s", (user_id,)).fetchone()[0]
         total_due = conn.execute(
-            "SELECT COALESCE(SUM(balance_due),0) FROM bills WHERE user_id = ?", (user_id,)).fetchone()[0]
+            "SELECT COALESCE(SUM(balance_due),0) FROM bills WHERE user_id = %s", (user_id,)).fetchone()[0]
         return {
             "total_customers": total_customers,
             "total_products": total_products,
