@@ -10,6 +10,8 @@ Run with:
     export GROQ_API_KEY=gsk_...          # get one free at https://console.groq.com
     uvicorn main:app --reload --port 8000
 """
+import psycopg2
+import psycopg2.extras
 
 import os
 import sqlite3
@@ -29,104 +31,89 @@ from pydantic import BaseModel, Field, field_validator
 # SECTION 1: DATABASE LAYER
 # ===========================================================================
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "expense.db")
-
-SESSION_LIFETIME_DAYS = 30
 
 
 @contextmanager
 def get_connection():
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10)
-    conn.execute("PRAGMA busy_timeout = 10000")
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
     try:
         yield conn
     finally:
         conn.close()
-
 
 def init_db():
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 business_name TEXT NOT NULL,
                 email TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 password_salt TEXT NOT NULL,
-                created_at TEXT DEFAULT (datetime('now', 'localtime'))
+                created_at TIMESTAMP DEFAULT NOW()
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                created_at TEXT DEFAULT (datetime('now', 'localtime')),
-                expires_at TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                created_at TIMESTAMP DEFAULT NOW(),
+                expires_at TIMESTAMP NOT NULL
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS customers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
                 name TEXT NOT NULL,
                 mobile TEXT,
-                created_at TEXT DEFAULT (datetime('now', 'localtime')),
-                UNIQUE(user_id, mobile),
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, mobile)
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
                 name TEXT NOT NULL,
                 image_path TEXT,
                 cost_price REAL NOT NULL,
                 sell_price REAL NOT NULL,
                 stock_qty INTEGER NOT NULL DEFAULT 0,
                 reorder_level INTEGER NOT NULL DEFAULT 5,
-                created_at TEXT DEFAULT (datetime('now', 'localtime')),
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                created_at TIMESTAMP DEFAULT NOW()
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS bills (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                customer_id INTEGER,
-                bill_date TEXT DEFAULT (datetime('now', 'localtime')),
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                customer_id INTEGER REFERENCES customers(id),
+                bill_date TIMESTAMP DEFAULT NOW(),
                 total_amount REAL NOT NULL DEFAULT 0,
                 paid_amount REAL NOT NULL DEFAULT 0,
                 balance_due REAL NOT NULL DEFAULT 0,
-                payment_mode TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (customer_id) REFERENCES customers(id)
+                payment_mode TEXT
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS bill_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                bill_id INTEGER NOT NULL,
-                product_id INTEGER NOT NULL,
+                id SERIAL PRIMARY KEY,
+                bill_id INTEGER NOT NULL REFERENCES bills(id),
+                product_id INTEGER NOT NULL REFERENCES products(id),
                 quantity INTEGER NOT NULL,
                 price_each REAL NOT NULL,
-                cost_each REAL NOT NULL,
-                FOREIGN KEY (bill_id) REFERENCES bills(id),
-                FOREIGN KEY (product_id) REFERENCES products(id)
+                cost_each REAL NOT NULL
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS payments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                bill_id INTEGER NOT NULL,
+                id SERIAL PRIMARY KEY,
+                bill_id INTEGER NOT NULL REFERENCES bills(id),
                 amount REAL NOT NULL,
                 mode TEXT NOT NULL,
-                payment_date TEXT DEFAULT (datetime('now', 'localtime')),
-                FOREIGN KEY (bill_id) REFERENCES bills(id)
+                payment_date TIMESTAMP DEFAULT NOW()
             )
         """)
         conn.commit()
