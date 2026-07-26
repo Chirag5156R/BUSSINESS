@@ -30,7 +30,8 @@ from pydantic import BaseModel, Field, field_validator
 # ===========================================================================
 # SECTION 1: DATABASE LAYER
 # ===========================================================================
-
+DATABASE_URL = os.environ["DATABASE_URL"]
+SESSION_LIFETIME_DAYS = 30
 
 
 @contextmanager
