@@ -153,26 +153,28 @@ def hash_password(password: str, salt: Optional[str] = None) -> tuple:
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200_000)
     return digest.hex(), salt
 
-
 def db_create_user(business_name, email, password):
     password_hash, salt = hash_password(password)
     with get_connection() as conn:
         try:
-            cur = conn.execute(
-                "INSERT INTO users (business_name, email, password_hash, password_salt) VALUES (%s, %s, %s, %s)",
+            cur = conn.cursor()
+            cur.execute(
+                "INSERT INTO users (business_name, email, password_hash, password_salt) VALUES (%s, %s, %s, %s) RETURNING id",
                 (business_name, email.lower(), password_hash, salt),
             )
+            new_id = cur.fetchone()["id"]
             conn.commit()
-            return cur.lastrowid
-        except sqlite3.IntegrityError:
+            return new_id
+        except psycopg2.IntegrityError:
+            conn.rollback()
             return None
 
 
 def db_get_user_by_email(email):
     with get_connection() as conn:
-        return row_to_dict(conn.execute(
-            "SELECT * FROM users WHERE email = %s", (email.lower(),)
-        ).fetchone())
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM users WHERE email = %s", (email.lower(),))
+        return row_to_dict(cur.fetchone())
 
 
 def db_verify_login(email, password):
@@ -189,7 +191,8 @@ def db_create_session(user_id):
     token = secrets.token_urlsafe(32)
     expires_at = (datetime.datetime.now() + datetime.timedelta(days=SESSION_LIFETIME_DAYS)).isoformat()
     with get_connection() as conn:
-        conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             "INSERT INTO sessions (token, user_id, expires_at) VALUES (%s, %s, %s)",
             (token, user_id, expires_at),
         )
@@ -199,16 +202,18 @@ def db_create_session(user_id):
 
 def db_get_session_user(token):
     with get_connection() as conn:
-        row = conn.execute("""
+        cur = conn.cursor()
+        cur.execute("""
             SELECT users.id, users.business_name, users.email, sessions.expires_at
             FROM sessions JOIN users ON sessions.user_id = users.id
             WHERE sessions.token = %s
-        """, (token,)).fetchone()
+        """, (token,))
+        row = cur.fetchone()
         if row is None:
             return None
         row = dict(row)
-        if datetime.datetime.fromisoformat(row["expires_at"]) < datetime.datetime.now():
-            conn.execute("DELETE FROM sessions WHERE token = %s", (token,))
+        if datetime.datetime.fromisoformat(str(row["expires_at"])) < datetime.datetime.now():
+            cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
             conn.commit()
             return None
         return row
@@ -216,7 +221,8 @@ def db_get_session_user(token):
 
 def db_delete_session(token):
     with get_connection() as conn:
-        conn.execute("DELETE FROM sessions WHERE token = %s", (token,))
+        cur = conn.cursor()
+        cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
         conn.commit()
 
 
@@ -227,24 +233,28 @@ def db_delete_session(token):
 def db_add_customer(user_id, name, mobile):
     with get_connection() as conn:
         try:
-            cur = conn.execute("INSERT INTO customers (user_id, name, mobile) VALUES (%s, %s, %s)",
-                                (user_id, name, mobile))
+            cur = conn.cursor()
+            cur.execute("INSERT INTO customers (user_id, name, mobile) VALUES (%s, %s, %s) RETURNING id",
+                        (user_id, name, mobile))
+            new_id = cur.fetchone()["id"]
             conn.commit()
-            return cur.lastrowid
-        except sqlite3.IntegrityError:
+            return new_id
+        except psycopg2.IntegrityError:
+            conn.rollback()
             return None
 
 
 def db_get_all_customers(user_id):
     with get_connection() as conn:
-        return rows_to_list(conn.execute(
-            "SELECT * FROM customers WHERE user_id = %s ORDER BY name", (user_id,)
-        ).fetchall())
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM customers WHERE user_id = %s ORDER BY name", (user_id,))
+        return rows_to_list(cur.fetchall())
 
 
 def db_get_outstanding_balances(user_id):
     with get_connection() as conn:
-        return rows_to_list(conn.execute("""
+        cur = conn.cursor()
+        cur.execute("""
             SELECT customers.id, customers.name, customers.mobile,
                    SUM(bills.balance_due) AS total_due,
                    COUNT(bills.id) AS bill_count
@@ -252,12 +262,14 @@ def db_get_outstanding_balances(user_id):
             WHERE bills.balance_due > 0 AND bills.user_id = %s
             GROUP BY customers.id
             ORDER BY total_due DESC
-        """, (user_id,)).fetchall())
+        """, (user_id,))
+        return rows_to_list(cur.fetchall())
 
 
 def db_get_customer_payment_history(user_id):
     with get_connection() as conn:
-        return rows_to_list(conn.execute("""
+        cur = conn.cursor()
+        cur.execute("""
             SELECT customers.id, customers.name, customers.mobile,
                    COUNT(bills.id) AS total_bills,
                    SUM(bills.total_amount) AS total_billed,
@@ -267,9 +279,10 @@ def db_get_customer_payment_history(user_id):
             FROM customers LEFT JOIN bills ON customers.id = bills.customer_id
             WHERE customers.user_id = %s
             GROUP BY customers.id
-            HAVING total_bills > 0
+            HAVING COUNT(bills.id) > 0
             ORDER BY total_due DESC
-        """, (user_id,)).fetchall())
+        """, (user_id,))
+        return rows_to_list(cur.fetchall())
 
 
 # ---------------------------------------------------------------------------
@@ -278,18 +291,21 @@ def db_get_customer_payment_history(user_id):
 
 def db_add_product(user_id, name, cost_price, sell_price, stock_qty, reorder_level=5, image_path=None):
     with get_connection() as conn:
-        cur = conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             """INSERT INTO products (user_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
             (user_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path),
         )
+        new_id = cur.fetchone()["id"]
         conn.commit()
-        return cur.lastrowid
+        return new_id
 
 
 def db_update_stock(user_id, product_id, qty_change):
     with get_connection() as conn:
-        cur = conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             "UPDATE products SET stock_qty = stock_qty + %s WHERE id = %s AND user_id = %s",
             (qty_change, product_id, user_id),
         )
@@ -300,55 +316,56 @@ def db_update_stock(user_id, product_id, qty_change):
 
 def db_update_product(user_id, product_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path=None):
     with get_connection() as conn:
+        cur = conn.cursor()
         if image_path is not None:
-            cur = conn.execute(
+            cur.execute(
                 """UPDATE products SET name=%s, cost_price=%s, sell_price=%s, stock_qty=%s,
                        reorder_level=%s, image_path=%s WHERE id=%s AND user_id=%s""",
                 (name, cost_price, sell_price, stock_qty, reorder_level, image_path, product_id, user_id),
             )
         else:
-            cur = conn.execute(
+            cur.execute(
                 """UPDATE products SET name=%s, cost_price=%s, sell_price=%s, stock_qty=%s,
                        reorder_level=%s WHERE id=%s AND user_id=%s""",
                 (name, cost_price, sell_price, stock_qty, reorder_level, product_id, user_id),
             )
-        conn.commit()
         if cur.rowcount == 0:
             raise KeyError("product not found")
-        return row_to_dict(conn.execute(
-            "SELECT * FROM products WHERE id=%s AND user_id=%s", (product_id, user_id)
-        ).fetchone())
+        conn.commit()
+        cur.execute("SELECT * FROM products WHERE id=%s AND user_id=%s", (product_id, user_id))
+        return row_to_dict(cur.fetchone())
 
 
 def db_delete_product(user_id, product_id):
     with get_connection() as conn:
-        owned = conn.execute(
-            "SELECT id FROM products WHERE id = %s AND user_id = %s", (product_id, user_id)
-        ).fetchone()
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM products WHERE id = %s AND user_id = %s", (product_id, user_id))
+        owned = cur.fetchone()
         if owned is None:
             raise KeyError("product not found")
-        in_use = conn.execute(
-            "SELECT COUNT(*) FROM bill_items WHERE product_id = %s", (product_id,)
-        ).fetchone()[0]
+        cur.execute("SELECT COUNT(*) AS count FROM bill_items WHERE product_id = %s", (product_id,))
+        in_use = cur.fetchone()["count"]
         if in_use:
             raise ValueError("This product appears on existing bills and can't be deleted.")
-        conn.execute("DELETE FROM products WHERE id = %s AND user_id = %s", (product_id, user_id))
+        cur.execute("DELETE FROM products WHERE id = %s AND user_id = %s", (product_id, user_id))
         conn.commit()
 
 
 def db_get_all_products(user_id):
     with get_connection() as conn:
-        return rows_to_list(conn.execute(
-            "SELECT * FROM products WHERE user_id = %s ORDER BY name", (user_id,)
-        ).fetchall())
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM products WHERE user_id = %s ORDER BY name", (user_id,))
+        return rows_to_list(cur.fetchall())
 
 
 def db_get_low_stock_products(user_id):
     with get_connection() as conn:
-        return rows_to_list(conn.execute(
-            "SELECT * FROM products WHERE user_id = ? AND stock_qty <= reorder_level ORDER BY stock_qty",
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT * FROM products WHERE user_id = %s AND stock_qty <= reorder_level ORDER BY stock_qty",
             (user_id,),
-        ).fetchall())
+        )
+        return rows_to_list(cur.fetchall())
 
 
 # ---------------------------------------------------------------------------
@@ -357,44 +374,46 @@ def db_get_low_stock_products(user_id):
 
 def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
     with get_connection() as conn:
+        cur = conn.cursor()
         if customer_id is not None:
-            owned = conn.execute(
+            cur.execute(
                 "SELECT id FROM customers WHERE id = %s AND user_id = %s", (customer_id, user_id)
-            ).fetchone()
-            if owned is None:
+            )
+            if cur.fetchone() is None:
                 raise ValueError("Customer not found")
 
         total_amount = sum(i["quantity"] * i["price_each"] for i in items)
         balance_due = round(total_amount - paid_amount, 2)
 
-        cur = conn.execute(
+        cur.execute(
             """INSERT INTO bills (user_id, customer_id, total_amount, paid_amount, balance_due, payment_mode)
-               VALUES (%s, %s, %s, %s, %s, %s)""",
+               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
             (user_id, customer_id, total_amount, paid_amount, balance_due, payment_mode),
         )
-        bill_id = cur.lastrowid
+        bill_id = cur.fetchone()["id"]
 
         for item in items:
-            prod = conn.execute(
+            cur.execute(
                 "SELECT stock_qty FROM products WHERE id = %s AND user_id = %s",
                 (item["product_id"], user_id),
-            ).fetchone()
+            )
+            prod = cur.fetchone()
             if prod is None:
                 raise ValueError(f"Product {item['product_id']} not found")
             if item["quantity"] > prod["stock_qty"]:
                 raise ValueError(f"Not enough stock for product {item['product_id']}")
 
-            conn.execute(
+            cur.execute(
                 """INSERT INTO bill_items (bill_id, product_id, quantity, price_each, cost_each)
                    VALUES (%s, %s, %s, %s, %s)""",
                 (bill_id, item["product_id"], item["quantity"], item["price_each"], item["cost_each"]),
             )
-            conn.execute("UPDATE products SET stock_qty = stock_qty - %s WHERE id = %s",
-                         (item["quantity"], item["product_id"]))
+            cur.execute("UPDATE products SET stock_qty = stock_qty - %s WHERE id = %s",
+                        (item["quantity"], item["product_id"]))
 
         if paid_amount > 0:
-            conn.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (%s, %s, %s)",
-                         (bill_id, paid_amount, payment_mode))
+            cur.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (%s, %s, %s)",
+                        (bill_id, paid_amount, payment_mode))
 
         conn.commit()
         return bill_id
@@ -402,13 +421,14 @@ def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
 
 def db_add_payment(user_id, bill_id, amount, mode):
     with get_connection() as conn:
-        bill = conn.execute(
+        cur = conn.cursor()
+        cur.execute(
             "SELECT balance_due FROM bills WHERE id = %s AND user_id = %s", (bill_id, user_id)
-        ).fetchone()
-        if bill is None:
+        )
+        if cur.fetchone() is None:
             raise KeyError("bill not found")
-        conn.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (%s, %s, %s)", (bill_id, amount, mode))
-        conn.execute(
+        cur.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (%s, %s, %s)", (bill_id, amount, mode))
+        cur.execute(
             "UPDATE bills SET paid_amount = paid_amount + %s, balance_due = balance_due - %s WHERE id = %s",
             (amount, amount, bill_id),
         )
@@ -417,6 +437,7 @@ def db_add_payment(user_id, bill_id, amount, mode):
 
 def db_get_bills(user_id, start_date=None, end_date=None, customer_id=None):
     with get_connection() as conn:
+        cur = conn.cursor()
         query = """
             SELECT bills.*, customers.name AS customer_name, customers.mobile AS customer_mobile
             FROM bills LEFT JOIN customers ON bills.customer_id = customers.id
@@ -424,31 +445,32 @@ def db_get_bills(user_id, start_date=None, end_date=None, customer_id=None):
         """
         params = [user_id]
         if start_date:
-            query += " AND date(bill_date) >= date(%s)"
+            query += " AND bill_date::date >= %s::date"
             params.append(start_date)
         if end_date:
-            query += " AND date(bill_date) <= date(%s)"
+            query += " AND bill_date::date <= %s::date"
             params.append(end_date)
         if customer_id:
             query += " AND bills.customer_id = %s"
             params.append(customer_id)
         query += " ORDER BY bills.bill_date DESC"
-        return rows_to_list(conn.execute(query, params).fetchall())
+        cur.execute(query, params)
+        return rows_to_list(cur.fetchall())
 
 
 def db_get_bill_items(user_id, bill_id):
     with get_connection() as conn:
-        owned = conn.execute(
-            "SELECT id FROM bills WHERE id = %s AND user_id = %s", (bill_id, user_id)
-        ).fetchone()
-        if owned is None:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM bills WHERE id = %s AND user_id = %s", (bill_id, user_id))
+        if cur.fetchone() is None:
             raise KeyError("bill not found")
-        return rows_to_list(conn.execute(
+        cur.execute(
             """SELECT bill_items.*, products.name AS product_name
                FROM bill_items JOIN products ON bill_items.product_id = products.id
                WHERE bill_id = %s""",
             (bill_id,),
-        ).fetchall())
+        )
+        return rows_to_list(cur.fetchall())
 
 
 # ---------------------------------------------------------------------------
@@ -457,26 +479,29 @@ def db_get_bill_items(user_id, bill_id):
 
 def db_get_sales_summary(user_id, start_date, end_date):
     with get_connection() as conn:
-        row = conn.execute("""
+        cur = conn.cursor()
+        cur.execute("""
             SELECT COALESCE(SUM(total_amount), 0) AS revenue,
                    COALESCE(SUM(paid_amount), 0) AS collected,
                    COALESCE(SUM(balance_due), 0) AS outstanding,
                    COUNT(*) AS bill_count
             FROM bills
-            WHERE user_id = %s AND date(bill_date) BETWEEN date(%s) AND date(%s)
-        """, (user_id, start_date, end_date)).fetchone()
-        return dict(row)
+            WHERE user_id = %s AND bill_date::date BETWEEN %s::date AND %s::date
+        """, (user_id, start_date, end_date))
+        return dict(cur.fetchone())
 
 
 def db_get_profit_loss(user_id, start_date, end_date):
     with get_connection() as conn:
-        row = conn.execute("""
+        cur = conn.cursor()
+        cur.execute("""
             SELECT
                 COALESCE(SUM(bill_items.quantity * bill_items.price_each), 0) AS revenue,
                 COALESCE(SUM(bill_items.quantity * bill_items.cost_each), 0) AS cost
             FROM bill_items JOIN bills ON bill_items.bill_id = bills.id
-            WHERE bills.user_id = %s AND date(bills.bill_date) BETWEEN date(%s) AND date(%s)
-        """, (user_id, start_date, end_date)).fetchone()
+            WHERE bills.user_id = %s AND bills.bill_date::date BETWEEN %s::date AND %s::date
+        """, (user_id, start_date, end_date))
+        row = cur.fetchone()
         revenue = row["revenue"] or 0
         cost = row["cost"] or 0
         return {"revenue": revenue, "cost": cost, "profit": revenue - cost}
@@ -484,38 +509,39 @@ def db_get_profit_loss(user_id, start_date, end_date):
 
 def db_get_product_sales_ranking(user_id, start_date, end_date):
     with get_connection() as conn:
-        return rows_to_list(conn.execute("""
+        cur = conn.cursor()
+        cur.execute("""
             SELECT products.id, products.name,
                    COALESCE(SUM(bill_items.quantity), 0) AS units_sold,
                    COALESCE(SUM(bill_items.quantity * bill_items.price_each), 0) AS revenue
             FROM products
             LEFT JOIN bill_items ON products.id = bill_items.product_id
             LEFT JOIN bills ON bill_items.bill_id = bills.id
-                AND date(bills.bill_date) BETWEEN date(%s) AND date(%s)
+                AND bills.bill_date::date BETWEEN %s::date AND %s::date
             WHERE products.user_id = %s
             GROUP BY products.id
             ORDER BY units_sold DESC
-        """, (start_date, end_date, user_id)).fetchall())
+        """, (start_date, end_date, user_id))
+        return rows_to_list(cur.fetchall())
 
 
 def db_get_home_summary(user_id):
     with get_connection() as conn:
-        total_customers = conn.execute(
-            "SELECT COUNT(*) FROM customers WHERE user_id = %s", (user_id,)).fetchone()[0]
-        total_products = conn.execute(
-            "SELECT COUNT(*) FROM products WHERE user_id = %s", (user_id,)).fetchone()[0]
-        total_bills = conn.execute(
-            "SELECT COUNT(*) FROM bills WHERE user_id = %s", (user_id,)).fetchone()[0]
-        total_due = conn.execute(
-            "SELECT COALESCE(SUM(balance_due),0) FROM bills WHERE user_id = %s", (user_id,)).fetchone()[0]
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) AS count FROM customers WHERE user_id = %s", (user_id,))
+        total_customers = cur.fetchone()["count"]
+        cur.execute("SELECT COUNT(*) AS count FROM products WHERE user_id = %s", (user_id,))
+        total_products = cur.fetchone()["count"]
+        cur.execute("SELECT COUNT(*) AS count FROM bills WHERE user_id = %s", (user_id,))
+        total_bills = cur.fetchone()["count"]
+        cur.execute("SELECT COALESCE(SUM(balance_due),0) AS total FROM bills WHERE user_id = %s", (user_id,))
+        total_due = cur.fetchone()["total"]
         return {
             "total_customers": total_customers,
             "total_products": total_products,
             "total_bills": total_bills,
             "total_due": total_due,
         }
-
-
 # ===========================================================================
 # SECTION 2: AI HELPER — Groq API calls
 # ===========================================================================
