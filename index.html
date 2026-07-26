@@ -306,6 +306,45 @@
     justify-content:center; color:#fff; font-weight:700; font-size:14px; flex:none;
     letter-spacing:.02em;
   }
+  .product-img{
+    width:44px; height:44px; border-radius:11px; object-fit:cover; flex:none;
+    background:var(--panel2);
+  }
+  .product-item .actions{
+    display:flex; gap:6px; flex:none;
+  }
+  .product-item .actions button{
+    background:none; border:1px solid var(--border); border-radius:8px;
+    padding:5px 9px; font-size:12.5px; color:var(--muted); transition:.15s ease;
+    line-height:1;
+  }
+  .product-item .actions button:hover{border-color:var(--border-strong); color:var(--text); background:var(--panel2)}
+
+  /* ---------------- Image preview (upload) ---------------- */
+  .img-preview-wrap{
+    margin-top:8px; display:none;
+  }
+  .img-preview-wrap img{
+    max-width:120px; max-height:120px; border-radius:8px;
+    border:1px solid var(--border); object-fit:cover;
+  }
+
+  /* ---------------- Edit modal ---------------- */
+  .modal-overlay{
+    position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.35);
+    display:none; align-items:center; justify-content:center; padding:20px;
+    overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex}
+  .modal-content{
+    background:var(--panel); border:1px solid var(--border);
+    border-radius:var(--radius); padding:24px; max-width:480px; width:100%;
+    box-shadow:var(--shadow-lg); max-height:90vh; overflow-y:auto;
+  }
+  .modal-content h3{margin-bottom:16px}
+  .modal-footer{
+    display:flex; gap:10px; justify-content:flex-end; margin-top:18px;
+  }
 
   /* ---------------- AI coach ---------------- */
   .coach-wrap{display:grid; grid-template-columns:1fr 260px; gap:var(--gutter)}
@@ -554,9 +593,9 @@
       <section class="page active" id="page-home">
         <div class="grid grid-4" id="homeStats"></div>
         <div class="callout info" style="margin-top:18px">
-          👉 Use the sidebar to go to <b>Billing</b> to create a bill, <b>Sales</b> for history,
+          You could use the sidebar to go to <b>Billing</b> to create a bill, <b>Sales</b> for history,
           <b>Dashboard</b> for profit/loss and AI insights, <b>Stock</b> to manage inventory, or
-          <b>AI Coach</b> to just ask.
+          <b>AI Coach</b> to ask.
         </div>
       </section>
 
@@ -587,7 +626,7 @@
                   <input id="billQty" type="number" min="1" value="1">
                 </div>
               </div>
-              <button class="btn secondary" onclick="addToCart()">➕ Add to bill</button>
+              <button class="btn secondary" onclick="addToCart()">Add to bill</button>
               <div id="cartError"></div>
             </div>
             <div class="card">
@@ -603,7 +642,7 @@
                 <input id="paidAmount" type="number" min="0" step="1" value="0">
               </div>
               <div id="billStatus"></div>
-              <button class="btn" id="finalizeBtn" onclick="finalizeBill()">✅ Finalize bill</button>
+              <button class="btn" id="finalizeBtn" onclick="finalizeBill()">Finalize bill</button>
             </div>
           </div>
         </div>
@@ -637,7 +676,7 @@
             <div class="table-wrap"><table id="outstandingTable"><thead><tr><th>Customer</th><th>Mobile</th><th>Bills</th><th>Total unpaid (<span class="cur-sym">₹</span>)</th></tr></thead><tbody></tbody></table></div>
           </div>
           <div class="card" style="margin-top:16px">
-            <h3>🤖 AI: who pays on time, who doesn't</h3>
+            <h3> AI: who pays on time, who doesn't</h3>
             <button class="btn gold" onclick="runAI('payment-behavior', 'paymentAiOut')">Generate payment behavior analysis</button>
             <div id="paymentAiOut"></div>
           </div>
@@ -701,11 +740,11 @@
         <h3 style="margin:22px 0 10px">Product performance</h3>
         <div class="grid grid-2">
           <div class="card"><h3>Top selling products</h3><div id="topProducts"></div></div>
-          <div class="card"><h3>🐌 Not selling / slow-moving</h3><div id="slowProducts"></div></div>
+          <div class="card"><h3> Not selling / slow-moving</h3><div id="slowProducts"></div></div>
         </div>
 
         <div class="card" style="margin-top:18px">
-          <h3>🤖 AI: what can be done to improve sales</h3>
+          <h3> AI: what can be done to improve sales</h3>
           <button class="btn gold" onclick="runSalesAI()">Generate sales insights</button>
           <div id="salesAiOut"></div>
         </div>
@@ -747,6 +786,13 @@
               <div class="field"><label>Initial stock qty</label><input id="prodStock" type="number" min="0" step="1" value="0"></div>
               <div class="field"><label>Reorder alert level</label><input id="prodReorder" type="number" min="0" step="1" value="5"></div>
             </div>
+            <div class="field">
+              <label>Product image</label>
+              <input type="file" id="prodImage" accept="image/*" onchange="previewProductImage(event)">
+              <div class="img-preview-wrap" id="prodImagePreview">
+                <img id="prodImagePreviewImg" alt="Image preview">
+              </div>
+            </div>
             <div id="prodStatus"></div>
             <button class="btn" onclick="addProduct()">Add product</button>
           </div>
@@ -754,10 +800,39 @@
 
         <div class="tabpane" id="tab-reorderai" style="display:none">
           <div class="card">
-            <h3>🤖 AI: what needs to be ordered, what must be avoided</h3>
+            <h3> AI: what needs to be ordered, what must be avoided</h3>
             <div id="lowStockCallout"></div>
             <button class="btn gold" onclick="runAI('stock-insights', 'stockAiOut')">Generate stock recommendations</button>
             <div id="stockAiOut"></div>
+          </div>
+        </div>
+
+        <!-- Edit product modal -->
+        <div class="modal-overlay" id="editModal">
+          <div class="modal-content">
+            <h3>Edit product</h3>
+            <input type="hidden" id="editProdId">
+            <div class="field"><label>Product name</label><input id="editProdName"></div>
+            <div class="row">
+              <div class="field"><label>Cost price (<span class="cur-sym">₹</span>)</label><input id="editProdCost" type="number" min="0" step="1" value="0"></div>
+              <div class="field"><label>Selling price (<span class="cur-sym">₹</span>)</label><input id="editProdSell" type="number" min="0" step="1" value="0"></div>
+            </div>
+            <div class="row">
+              <div class="field"><label>Stock qty</label><input id="editProdStock" type="number" min="0" step="1" value="0"></div>
+              <div class="field"><label>Reorder level</label><input id="editProdReorder" type="number" min="0" step="1" value="5"></div>
+            </div>
+            <div class="field">
+              <label>Product image</label>
+              <input type="file" id="editProdImage" accept="image/*" onchange="previewEditProductImage(event)">
+              <div class="img-preview-wrap" id="editProdImagePreview">
+                <img id="editProdImagePreviewImg" alt="Image preview">
+              </div>
+            </div>
+            <div id="editProdStatus"></div>
+            <div class="modal-footer">
+              <button class="btn secondary" onclick="closeEditModal()">Cancel</button>
+              <button class="btn" onclick="saveEditProduct()">Save changes</button>
+            </div>
           </div>
         </div>
       </section>
@@ -798,6 +873,8 @@
 // block and restore the real fetch-based api() (see api() note below).
 // TODO: Replace mock data with backend API
 // ===================================================================
+const STORED_PRODUCTS_KEY = 'ledgerly.products';
+
 const MOCK = {
   customers: [
     {id:1, name:'Rohan Sharma', mobile:'9876500001'},
@@ -806,12 +883,12 @@ const MOCK = {
     {id:4, name:'Neha Gupta',   mobile:'9876500004'},
   ],
   products: [
-    {id:1, name:'Notebook',          cost_price:20,  sell_price:35,  stock_qty:50,  reorder_level:5},
-    {id:2, name:'Ballpoint Pen',     cost_price:5,   sell_price:10,  stock_qty:100, reorder_level:20},
-    {id:3, name:'Stapler',           cost_price:40,  sell_price:65,  stock_qty:20,  reorder_level:3},
-    {id:4, name:'A4 Paper Ream',     cost_price:180, sell_price:250, stock_qty:15,  reorder_level:3},
-    {id:5, name:'Whiteboard Marker', cost_price:15,  sell_price:30,  stock_qty:40,  reorder_level:8},
-    {id:6, name:'Sticky Notes Pack', cost_price:25,  sell_price:45,  stock_qty:30,  reorder_level:5},
+    {id:1, name:'Notebook',          cost_price:20,  sell_price:35,  stock_qty:50,  reorder_level:5,  image_data:null},
+    {id:2, name:'Ballpoint Pen',     cost_price:5,   sell_price:10,  stock_qty:100, reorder_level:20, image_data:null},
+    {id:3, name:'Stapler',           cost_price:40,  sell_price:65,  stock_qty:20,  reorder_level:3,  image_data:null},
+    {id:4, name:'A4 Paper Ream',     cost_price:180, sell_price:250, stock_qty:15,  reorder_level:3,  image_data:null},
+    {id:5, name:'Whiteboard Marker', cost_price:15,  sell_price:30,  stock_qty:40,  reorder_level:8,  image_data:null},
+    {id:6, name:'Sticky Notes Pack', cost_price:25,  sell_price:45,  stock_qty:30,  reorder_level:5,  image_data:null},
   ],
   bills: [],       // filled as you finalize bills in the UI
   billItems: {},   // bill id -> line items
@@ -819,6 +896,20 @@ const MOCK = {
   nextProductId: 7,
   nextBillId: 1,
 };
+
+function saveProducts(){
+  try{ localStorage.setItem(STORED_PRODUCTS_KEY, JSON.stringify(MOCK.products)); }catch(e){}
+}
+function loadSavedProducts(){
+  try{
+    const saved = localStorage.getItem(STORED_PRODUCTS_KEY);
+    if(!saved) return;
+    const parsed = JSON.parse(saved);
+    if(!Array.isArray(parsed) || !parsed.length) return;
+    MOCK.products = parsed;
+    MOCK.nextProductId = Math.max.apply(null, parsed.map(p => p.id)) + 1;
+  }catch(e){}
+}
 
 const MOCK_AI = {
   'payment-behavior': "Right now every customer is paid up, so there's no risk to flag yet.\n\nOnce a few bills go out on credit I'll rank who settles quickly and who drags, and point out anyone whose balance is getting large relative to what they've actually paid. A simple habit that helps: set an informal credit limit per customer and send a nudge at the 7-day mark.",
@@ -845,16 +936,12 @@ const OFF_TOPIC_REPLY = "I'm your Business Assistant, so I can help with invoice
 
 function isBusinessQuestion(text){
   const l = text.toLowerCase();
-  // Substring match, so plurals and inflections ("prices", "margins",
-  // "discounts") resolve without enumerating every form.
   return BUSINESS_TOPICS.some(k => l.includes(k));
 }
 
-// Answers are grounded in MOCK data only — never invented figures.
 function mockCoachReply(msg){
   const l = msg.toLowerCase();
 
-  // Refuse anything outside the app's domain instead of hallucinating.
   if(!isBusinessQuestion(msg)) return OFF_TOPIC_REPLY;
 
   const bills = MOCK.bills;
@@ -907,20 +994,16 @@ function mockCoachReply(msg){
   return "I can dig into your sales, pricing, stock levels, profit, or unpaid balances. Tell me which of those you're thinking about and I'll give you something specific from your own numbers.";
 }
 
-// Deterministic pseudo-random so the demo numbers are stable across reloads.
 let _seed = 20260725;
 function rnd(){ _seed = (_seed * 1103515245 + 12345) & 0x7fffffff; return _seed / 0x7fffffff; }
 function pick(arr){ return arr[Math.floor(rnd() * arr.length)]; }
 
-// Twelve months of billing history. Historical bills do NOT move current
-// stock — stock_qty already reflects today's shelf count.
-// TODO: Replace mock data with backend API
 (function seedHistory(){
   const now = new Date();
   for(let back = 11; back >= 0; back--){
     const month = new Date(now.getFullYear(), now.getMonth() - back, 1);
-    const billCount = 3 + Math.floor(rnd() * 4);                    // 3-6 bills a month
-    const growth = 1 + (11 - back) * 0.06;                          // gentle upward trend
+    const billCount = 3 + Math.floor(rnd() * 4);
+    const growth = 1 + (11 - back) * 0.06;
     for(let n = 0; n < billCount; n++){
       const day = 2 + Math.floor(rnd() * 26);
       const date = new Date(month.getFullYear(), month.getMonth(), day, 10 + Math.floor(rnd()*8), 15);
@@ -934,7 +1017,7 @@ function pick(arr){ return arr[Math.floor(rnd() * arr.length)]; }
         items.push({product_name: prod.name, quantity: qty, price_each: prod.sell_price});
         total += qty * prod.sell_price;
       }
-      const onCredit = rnd() < 0.28;                                // some bills go out unpaid
+      const onCredit = rnd() < 0.28;
       const cust = onCredit || rnd() < 0.6 ? pick(MOCK.customers) : null;
       const paid = !cust ? total
         : onCredit ? Math.round(total * (rnd() * 0.6)) : total;
@@ -955,8 +1038,12 @@ function pick(arr){ return arr[Math.floor(rnd() * arr.length)]; }
   MOCK.bills.sort((a,b) => a.bill_date < b.bill_date ? -1 : 1);
 })();
 
+// Restore any user-saved products (images, edits, adds, deletes)
+loadSavedProducts();
+
 function mockDelay(ms){ return new Promise(r => setTimeout(r, ms)); }
 function findProduct(id){ return MOCK.products.find(p => p.id === Number(id)); }
+function findProductIndex(id){ return MOCK.products.findIndex(p => p.id === Number(id)); }
 function inRange(dateStr, start, end){
   const d = String(dateStr).slice(0,10);
   return (!start || d >= start) && (!end || d <= end);
@@ -969,10 +1056,6 @@ function initials(name){ return name.split(' ').slice(0,2).map(w=>w[0]||'').join
 // ===================================================================
 const STORE_KEYS = {theme:'ledgerly.theme', currency:'ledgerly.currency', range:'ledgerly.trendRange'};
 
-// 10 most commonly used currencies. `rate` is a placeholder of 1 so that
-// conversion can be layered in later without touching any call site:
-// swap in live rates and money() converts automatically.
-// TODO: Replace static rates with a live exchange-rate API
 const CURRENCIES = {
   USD:{symbol:'$',  name:'US Dollar',        locale:'en-US', decimals:2, rate:1},
   EUR:{symbol:'€',  name:'Euro',             locale:'de-DE', decimals:2, rate:1},
@@ -995,7 +1078,6 @@ function money(n){
   const num = value.toLocaleString(c.locale, {minimumFractionDigits:c.decimals, maximumFractionDigits:c.decimals});
   return activeCurrency === 'VND' ? num + c.symbol : c.symbol + num;
 }
-// Legacy alias — every existing call site keeps working.
 const inr = money;
 
 function moneyShort(n){
@@ -1034,7 +1116,7 @@ function setTheme(mode){
   try{ localStorage.setItem(STORE_KEYS.theme, mode); }catch(e){}
   const btn = document.getElementById('themeToggle');
   if(btn) btn.setAttribute('aria-pressed', String(mode === 'dark'));
-  renderTrends();                                     // charts read colors from CSS vars
+  renderTrends();
 }
 function toggleTheme(){
   setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
@@ -1056,7 +1138,6 @@ function initPreferences(){
     b.classList.toggle('active', b.dataset.range === trendRange));
 }
 
-// Re-render whichever page is showing (used after a preference change).
 function refreshCurrentPage(){
   const active = document.querySelector('.page.active');
   const page = active ? active.id.replace('page-', '') : 'home';
@@ -1069,13 +1150,8 @@ function cssVar(name){
 }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 
-// Mock stand-in for the real API. Same signature as the live version, so
-// every caller below is untouched. The live version was:
-//   const res = await fetch(API_BASE + path, {headers:{'Content-Type':'application/json'}, ...opts});
-//   if(!res.ok) throw new Error((await res.json()).detail || 'Request failed');
-//   return res.status === 204 ? null : res.json();
 async function api(path, opts={}){
-  await mockDelay(140);                                  // simulated latency
+  await mockDelay(140);
   const method = (opts.method || 'GET').toUpperCase();
   const body = opts.body ? JSON.parse(opts.body) : {};
   const [route, qs] = path.split('?');
@@ -1123,15 +1199,32 @@ async function api(path, opts={}){
       id: MOCK.nextProductId++, name: body.name,
       cost_price: body.cost_price, sell_price: body.sell_price,
       stock_qty: body.stock_qty, reorder_level: body.reorder_level,
+      image_data: body.image_data || null,
     };
     MOCK.products.push(p);
+    saveProducts();
     return {id: p.id, warning: p.sell_price < p.cost_price};
   }
   if(m(/^\/api\/products\/(\d+)\/restock$/) && method === 'POST'){
     const p = findProduct(m(/^\/api\/products\/(\d+)\/restock$/)[1]);
     if(!p) throw new Error('Product not found.');
     p.stock_qty += Number(body.qty || 0);
+    saveProducts();
     return p;
+  }
+  if(m(/^\/api\/products\/(\d+)$/) && method === 'PUT'){
+    const p = findProduct(m(/^\/api\/products\/(\d+)$/)[1]);
+    if(!p) throw new Error('Product not found.');
+    Object.assign(p, body);
+    saveProducts();
+    return p;
+  }
+  if(m(/^\/api\/products\/(\d+)$/) && method === 'DELETE'){
+    const idx = findProductIndex(m(/^\/api\/products\/(\d+)$/)[1]);
+    if(idx === -1) throw new Error('Product not found.');
+    MOCK.products.splice(idx, 1);
+    saveProducts();
+    return null;
   }
 
   // ---- Bills ----
@@ -1171,7 +1264,7 @@ async function api(path, opts={}){
     MOCK.bills.push(bill);
     MOCK.billItems[bill.id] = items.map(i => {
       const p = findProduct(i.product_id);
-      if(p) p.stock_qty -= i.quantity;                   // stock moves with the sale
+      if(p) p.stock_qty -= i.quantity;
       return {product_name: p ? p.name : 'Item', quantity: i.quantity, price_each: i.price_each};
     });
     return bill;
@@ -1334,7 +1427,7 @@ function renderCart(){
   let total = 0;
   wrap.innerHTML = cart.map((item, idx) => {
     const lineTotal = item.quantity * item.price_each; total += lineTotal;
-    return `<div class="cart-row"><div class="name">${item.name}</div><div class="qty">×${item.quantity}</div><div class="price">${inr(item.price_each)}</div><div class="total">${inr(lineTotal)}</div><button onclick="removeFromCart(${idx})">🗑️</button></div>`;
+    return `<div class="cart-row"><div class="name">${item.name}</div><div class="qty">×${item.quantity}</div><div class="price">${inr(item.price_each)}</div><div class="total">${inr(lineTotal)}</div><button onclick="removeFromCart(${idx})">Remove</button></div>`;
   }).join('');
   document.getElementById('cartTotal').innerHTML = `<h3 style="margin-top:14px;border:none;padding:0">Total: ${inr(total)}</h3>`;
   document.getElementById('paidAmount').value = total.toFixed(2);
@@ -1372,7 +1465,7 @@ async function finalizeBill(){
       items: cart.map(({product_id, quantity, price_each, cost_each}) => ({product_id, quantity, price_each, cost_each})),
       paid_amount, payment_mode,
     })});
-    document.getElementById('billStatus').innerHTML = `<div class="callout success">Bill #${res.id} created successfully! 🎉</div>`;
+    document.getElementById('billStatus').innerHTML = `<div class="callout success">Bill #${res.id} created successfully!</div>`;
     cart = []; renderCart();
     loadBillingTab();
     renderTrends();
@@ -1456,7 +1549,7 @@ async function loadSales(){
     ${statCard('Outstanding', inr(summary.outstanding))}
     ${statCard('Bills', summary.bill_count)}
   `;
-  renderTrends();                    // charts follow the latest bills/payments
+  renderTrends();
 
   const listEl = document.getElementById('billsList');
   if(bills.length===0){ listEl.innerHTML = '<p class="empty">No sales in this period.</p>'; return; }
@@ -1482,8 +1575,6 @@ function setTrendRange(range){
   renderTrends();
 }
 
-// Buckets every bill into its calendar month. Reads MOCK.bills directly, so
-// it always reflects the latest invoices and payments.
 function monthlyTrends(range){
   if(!MOCK.bills.length) return [];
   const buckets = {};
@@ -1530,7 +1621,6 @@ function monthlyTrends(range){
   });
 }
 
-// Smooth SVG line + area chart with per-month hover tooltips. No libraries.
 function lineChart(rows, valueKey, color){
   const W = 600, H = 170, top = 10, bottom = 8;
   const values = rows.map(r => r[valueKey]);
@@ -1671,15 +1761,23 @@ async function loadStock(){
   productsCache = products;
   const lowIds = new Set(lowStock.map(p => p.id));
 
-  document.getElementById('productList').innerHTML = products.length ? products.map(p => `
-    <div class="product-item">
-      <div class="avatar" style="background:${colorFor(p.name)}">${initials(p.name)}</div>
+  document.getElementById('productList').innerHTML = products.length ? products.map(p => {
+    const imgHtml = p.image_data
+      ? `<img src="${p.image_data}" alt="${p.name}" class="product-img">`
+      : `<div class="avatar" style="background:${colorFor(p.name)}">${initials(p.name)}</div>`;
+    return `<div class="product-item">
+      ${imgHtml}
       <div style="flex:1">
-        <div style="font-weight:600">${p.name}${lowIds.has(p.id) ? ' <span class="badge badge-red">⚠️ LOW STOCK</span>' : ''}</div>
+        <div style="font-weight:600">${p.name}${lowIds.has(p.id) ? ' <span class="badge badge-red">LOW STOCK</span>' : ''}</div>
         <div style="font-size:12.5px;color:var(--muted)">Stock: ${p.stock_qty} | Cost: ${inr(p.cost_price)} | Sell: ${inr(p.sell_price)} | Reorder level: ${p.reorder_level}</div>
         <div style="font-size:12px;color:var(--faint)">Margin per unit: ${inr(p.sell_price - p.cost_price)}</div>
       </div>
-    </div>`).join('') : '<p class="empty">No products added yet. Use the "Add Item" tab.</p>';
+      <div class="actions">
+        <button onclick="openEditProduct(${p.id})">Edit</button>
+        <button onclick="deleteProduct(${p.id})">Delete</button>
+      </div>
+    </div>`;
+  }).join('') : '<p class="empty">No products added yet. Use the "Add Item" tab.</p>';
 
   document.getElementById('restockProduct').innerHTML = products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
 
@@ -1692,12 +1790,17 @@ async function addProduct(){
   const name = document.getElementById('prodName').value.trim();
   const statusEl = document.getElementById('prodStatus');
   if(!name){ statusEl.innerHTML = '<div class="callout error">Please enter a product name.</div>'; return; }
+
+  const previewImg = document.getElementById('prodImagePreviewImg');
+  const imageData = previewImg.src && previewImg.src.startsWith('data:') ? previewImg.src : null;
+
   const payload = {
     name,
     cost_price: Number(document.getElementById('prodCost').value),
     sell_price: Number(document.getElementById('prodSell').value),
     stock_qty: Number(document.getElementById('prodStock').value),
     reorder_level: Number(document.getElementById('prodReorder').value),
+    image_data: imageData,
   };
   try{
     const res = await api('/api/products', {method:'POST', body: JSON.stringify(payload)});
@@ -1705,6 +1808,9 @@ async function addProduct(){
       ? `<div class="callout error">Added '${name}' (#${res.id}) — note: selling below cost.</div>`
       : `<div class="callout success">Added '${name}' (#${res.id}) to the catalog.</div>`;
     document.getElementById('prodName').value='';
+    document.getElementById('prodImage').value='';
+    document.getElementById('prodImagePreview').style.display='none';
+    document.getElementById('prodImagePreviewImg').src='';
     loadStock();
   }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
 }
@@ -1718,6 +1824,99 @@ async function restock(){
     statusEl.innerHTML = `<div class="callout success">Added ${qty} units.</div>`;
     loadStock();
   }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
+}
+
+// ---------- Image preview ----------
+function previewProductImage(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const wrap = document.getElementById('prodImagePreview');
+    const img = document.getElementById('prodImagePreviewImg');
+    wrap.style.display = 'block';
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function previewEditProductImage(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const wrap = document.getElementById('editProdImagePreview');
+    const img = document.getElementById('editProdImagePreviewImg');
+    wrap.style.display = 'block';
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ---------- Edit product ----------
+function openEditProduct(id){
+  const p = findProduct(id);
+  if(!p) return;
+  document.getElementById('editProdId').value = p.id;
+  document.getElementById('editProdName').value = p.name;
+  document.getElementById('editProdCost').value = p.cost_price;
+  document.getElementById('editProdSell').value = p.sell_price;
+  document.getElementById('editProdStock').value = p.stock_qty;
+  document.getElementById('editProdReorder').value = p.reorder_level;
+  const previewWrap = document.getElementById('editProdImagePreview');
+  const previewImg = document.getElementById('editProdImagePreviewImg');
+  document.getElementById('editProdImage').value = '';
+  if(p.image_data){
+    previewWrap.style.display = 'block';
+    previewImg.src = p.image_data;
+  }else{
+    previewWrap.style.display = 'none';
+    previewImg.src = '';
+  }
+  document.getElementById('editProdStatus').innerHTML = '';
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeEditModal(){
+  document.getElementById('editModal').classList.remove('open');
+}
+
+async function saveEditProduct(){
+  const id = Number(document.getElementById('editProdId').value);
+  const name = document.getElementById('editProdName').value.trim();
+  const statusEl = document.getElementById('editProdStatus');
+  if(!name){ statusEl.innerHTML = '<div class="callout error">Product name cannot be empty.</div>'; return; }
+
+  const previewImg = document.getElementById('editProdImagePreviewImg');
+  const imageData = previewImg.src && previewImg.src.startsWith('data:') ? previewImg.src : null;
+
+  try{
+    await api('/api/products/' + id, {method: 'PUT', body: JSON.stringify({
+      name,
+      cost_price: Number(document.getElementById('editProdCost').value),
+      sell_price: Number(document.getElementById('editProdSell').value),
+      stock_qty: Number(document.getElementById('editProdStock').value),
+      reorder_level: Number(document.getElementById('editProdReorder').value),
+      image_data: imageData,
+    })});
+    closeEditModal();
+    loadStock();
+  }catch(e){
+    statusEl.innerHTML = `<div class="callout error">${e.message}</div>`;
+  }
+}
+
+// ---------- Delete product ----------
+async function deleteProduct(id){
+  const p = findProduct(id);
+  if(!p) return;
+  if(!confirm('Delete "' + p.name + '" permanently? This cannot be undone.')) return;
+  try{
+    await api('/api/products/' + id, {method: 'DELETE'});
+    loadStock();
+  }catch(e){
+    alert(e.message);
+  }
 }
 
 // ---------- AI (shared) ----------
@@ -1747,7 +1946,7 @@ async function sendChat(){
     const res = await api('/api/ai/coach', {method:'POST', body: JSON.stringify({message: msg, history: chatHistory})});
     thinkingEl.textContent = res.text;
     chatHistory.push({role:'assistant', content: res.text});
-  }catch(e){ thinkingEl.textContent = `⚠️ ${e.message}`; }
+  }catch(e){ thinkingEl.textContent = `! ${e.message}`; }
   log.scrollTop = log.scrollHeight;
 }
 function appendBubble(text, who){
