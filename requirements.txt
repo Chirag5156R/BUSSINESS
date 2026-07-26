@@ -3,5 +3,3 @@ uvicorn
 requests
 pydantic
 psycopg2-binary
-vercel.json
-
