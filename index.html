@@ -1,1964 +1,767 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="en" class="scroll-smooth">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ledgerly — Billing &amp; Stock</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  /* ===================================================================
-     Ledgerly — visual layer only. Variable NAMES are preserved because
-     inline styles and JS reference var(--brand-text), var(--faint), etc.
-     =================================================================== */
-  :root{
-    /* neutrals */
-    --bg:#f4f6f8; --panel:#ffffff; --panel2:#f8fafb;
-    --border:#e6eaee; --border-strong:#dbe1e7;
-    --text:#101827; --muted:#5b6572; --faint:#8b95a1;
 
-    /* brand (teal) */
-    --brand:#0f8a6b; --brand-text:#0c6f56; --brand-weak:rgba(15,138,107,.10);
-    --brand-weak-2:rgba(15,138,107,.20);
-
-    /* AI accent (purple) — AI features only */
-    --ai:#6d5ae6; --ai-weak:rgba(109,90,230,.10); --ai-weak-2:rgba(109,90,230,.20);
-
-    /* semantic */
-    --pos:#0f8a6b; --neg:#d1495b; --neg-weak:rgba(209,73,91,.10);
-    --warn:#b7791f; --warn-weak:rgba(183,121,31,.10);
-    --info:#2f7bbf; --info-weak:rgba(47,123,191,.10);
-
-    /* shape & depth */
-    --radius:14px; --radius-sm:10px;
-    --shadow:0 1px 2px rgba(16,24,39,.06);
-    --shadow-lg:0 8px 24px rgba(16,24,39,.10);
-    --gutter:20px;
-  }
-
-  /* ---------------- Dark theme ---------------- */
-  html[data-theme="dark"]{
-    --bg:#0b0e13; --panel:#141922; --panel2:#1a212b;
-    --border:#242c37; --border-strong:#303a47;
-    --text:#e7ecf2; --muted:#9aa7b4; --faint:#66727f;
-
-    --brand:#2fbf98; --brand-text:#4fd0ac;
-    --brand-weak:rgba(47,191,152,.14); --brand-weak-2:rgba(47,191,152,.28);
-
-    --ai:#9b8cff; --ai-weak:rgba(155,140,255,.15); --ai-weak-2:rgba(155,140,255,.30);
-
-    --pos:#2fbf98; --neg:#ef6b7a; --neg-weak:rgba(239,107,122,.16);
-    --warn:#e0a94a; --warn-weak:rgba(224,169,74,.16);
-    --info:#5c93e6; --info-weak:rgba(92,147,230,.16);
-
-    --shadow:0 1px 2px rgba(0,0,0,.40);
-    --shadow-lg:0 10px 28px rgba(0,0,0,.55);
-    color-scheme:dark;
-  }
-  html[data-theme="dark"] header{background:rgba(18,23,31,.82)}
-  html[data-theme="dark"] .stat .label::after{
-    background:var(--brand-weak) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232fbf98' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 8-8'/%3E%3Cpath d='M15 7h6v6'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
-  }
-  html[data-theme="dark"] .sidebar-card{
-    background:linear-gradient(140deg, rgba(47,191,152,.13) 0%, rgba(155,140,255,.15) 100%);
-  }
-  html[data-theme="dark"] .callout.info{background:rgba(155,140,255,.13)}
-  html[data-theme="dark"] .avatar{filter:saturate(.85) brightness(.95)}
-
-  /* Smooth theme transition */
-  body, .sidebar, header, .card, .table-wrap, thead th, tbody td, input, select,
-  .tabs, .tab, .callout, .badge, .bubble, .suggested button, .sidebar-card,
-  .navbtn, .btn, .trend-card, .chart-tip{
-    transition:background-color .28s ease, color .28s ease, border-color .28s ease, box-shadow .28s ease;
-  }
-
-  *{box-sizing:border-box}
-  html,body{margin:0;padding:0}
-  body{
-    font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif; color:var(--text);
-    background:var(--bg); min-height:100vh; -webkit-font-smoothing:antialiased;
-    text-rendering:optimizeLegibility;
-  }
-  h1,h2,h3{font-family:inherit; color:var(--text); font-weight:800; letter-spacing:-.02em; margin:0}
-  h3{font-size:15.5px; font-weight:700; letter-spacing:-.01em}
-  .mono{font-family:'JetBrains Mono',monospace; font-variant-numeric:tabular-nums}
-  a{color:var(--brand-text); text-decoration:none}
-  a:hover{color:var(--brand)}
-  button{font-family:inherit; cursor:pointer}
-  input,select{font-family:inherit}
-  ::selection{background:var(--brand-weak-2)}
-
-  .layout{display:flex; min-height:100vh; align-items:stretch}
-
-  /* ---------------- Sidebar ---------------- */
-  .sidebar{
-    width:250px; flex:none; padding:20px 16px; display:flex; flex-direction:column; gap:6px;
-    background:var(--panel); border-right:1px solid var(--border); color:var(--text);
-  }
-  .brand{display:flex; align-items:center; gap:11px; padding:6px 8px 20px}
-  .brand .mark{
-    width:34px; height:34px; border-radius:9px; background:var(--brand);
-    display:flex; align-items:center; justify-content:center; font-size:16px; flex:none;
-  }
-  .brand .name{font-weight:800; font-size:16px; letter-spacing:-.02em; color:var(--text); line-height:1.15}
-  .brand .tag{
-    font-size:11px; color:var(--faint); font-weight:600;
-    letter-spacing:.09em; text-transform:uppercase; margin-top:1px;
-  }
-  .navlabel{
-    font-size:11px; font-weight:700; letter-spacing:.11em; color:var(--faint);
-    text-transform:uppercase; padding:6px 10px 8px;
-  }
-  .navbtn{
-    display:flex; align-items:center; gap:11px; width:100%; text-align:left;
-    background:none; border:none; color:var(--muted);
-    padding:10px 12px; border-radius:11px; font-size:13.5px; font-weight:600;
-    transition:background .15s ease, color .15s ease;
-  }
-  .navbtn:hover{background:var(--panel2); color:var(--text)}
-  .navbtn.active{background:var(--brand-weak); color:var(--brand-text)}
-  .navbtn:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
-  .navbtn svg{flex:none; opacity:.95}
-  .sidebar-footer{margin-top:auto; padding-top:18px}
-  .sidebar-card{
-    background:linear-gradient(140deg, rgba(15,138,107,.09) 0%, rgba(109,90,230,.09) 100%);
-    border:1px solid var(--border); border-radius:var(--radius); padding:16px;
-  }
-  .sidebar-card p{font-size:12px; line-height:1.55; color:var(--muted); margin:0 0 12px}
-  .sidebar-card p strong{color:var(--text); font-weight:700}
-  .sidebar-card button{
-    width:100%; border:none; background:var(--brand); color:#fff; font-weight:600;
-    font-size:12.5px; padding:10px; border-radius:var(--radius-sm);
-    transition:filter .15s ease, transform .15s ease;
-  }
-  .sidebar-card button:hover{filter:brightness(1.07); transform:translateY(-1px)}
-  .sidebar-card button:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
-
-  /* ---------------- Main / header ---------------- */
-  .main{flex:1; min-width:0; display:flex; flex-direction:column}
-  header{
-    position:sticky; top:0; z-index:5;
-    background:rgba(255,255,255,.82);
-    backdrop-filter:blur(10px) saturate(140%); -webkit-backdrop-filter:blur(10px) saturate(140%);
-    border-bottom:1px solid var(--border); padding:0 28px; height:66px;
-    display:flex; align-items:center; justify-content:space-between; gap:14px;
-  }
-  header h1{font-size:19px; font-weight:800; letter-spacing:-.02em; line-height:1.2}
-  header p{margin:2px 0 0; font-size:12.5px; color:var(--muted); font-weight:500}
-  .content{padding:24px 28px 60px; max-width:1180px; width:100%; margin:0 auto}
-  .page{display:none}
-  .page.active{display:block; animation:fadeUp .25s ease}
-  @keyframes fadeUp{from{opacity:0; transform:translateY(6px)} to{opacity:1; transform:none}}
-
-  /* ---------------- Grid & cards ---------------- */
-  .grid{display:grid; gap:var(--gutter)}
-  .grid-4{grid-template-columns:repeat(auto-fit, minmax(215px, 1fr))}
-  .grid-2{grid-template-columns:1fr 1fr}
-  .card{
-    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
-    padding:18px; box-shadow:var(--shadow);
-    transition:transform .15s ease, box-shadow .15s ease;
-  }
-  .card:hover{transform:translateY(-2px); box-shadow:var(--shadow-lg)}
-  .card h3{
-    font-size:14px; font-weight:700; letter-spacing:-.01em;
-    border-bottom:1px solid var(--border); padding-bottom:11px; margin-bottom:15px;
-  }
-
-  /* KPI / stat cards — icon tile drawn with CSS, no markup added */
-  .stat .label{
-    display:flex; align-items:center; justify-content:space-between; gap:8px;
-    font-size:12.5px; color:var(--muted); font-weight:600; min-height:30px;
-  }
-  .stat .label::after{
-    content:""; width:30px; height:30px; border-radius:9px; flex:none;
-    background:var(--brand-weak) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f8a6b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 8-8'/%3E%3Cpath d='M15 7h6v6'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
-  }
-  .stat .value{
-    font-size:25px; font-weight:800; letter-spacing:-.03em; color:var(--text);
-    margin-top:9px; font-variant-numeric:tabular-nums;
-  }
-  .stat .delta{
-    display:inline-flex; align-items:center; gap:6px;
-    font-size:11.5px; margin-top:8px; font-weight:700; letter-spacing:.02em;
-  }
-  .delta.pos{color:var(--pos)} .delta.neg{color:var(--neg)}
-  .delta.pos::before, .delta.neg::before{
-    content:""; width:0; height:0; flex:none;
-    border-left:4px solid transparent; border-right:4px solid transparent;
-  }
-  .delta.pos::before{border-bottom:6px solid currentColor}
-  .delta.neg::before{border-top:6px solid currentColor}
-
-  /* ---------------- Buttons ---------------- */
-  .btn{
-    background:var(--brand); color:#fff; border:1px solid var(--brand);
-    border-radius:var(--radius-sm); padding:9px 18px; font-weight:600; font-size:13.5px;
-    box-shadow:var(--shadow);
-    transition:filter .15s ease, transform .15s ease, box-shadow .15s ease;
-  }
-  .btn:hover{filter:brightness(1.07); transform:translateY(-1px); box-shadow:var(--shadow-lg)}
-  .btn:active{transform:translateY(0)}
-  .btn:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
-  .btn.secondary{background:var(--panel); color:var(--text); border:1px solid var(--border); box-shadow:var(--shadow)}
-  .btn.secondary:hover{border-color:var(--border-strong); filter:none}
-  .btn.gold{background:var(--ai); border-color:var(--ai); color:#fff}
-  .btn.gold:focus-visible{box-shadow:0 0 0 3px var(--ai-weak-2)}
-  .btn:disabled{
-    background:var(--panel2); border-color:var(--border); color:var(--faint);
-    cursor:not-allowed; filter:none; transform:none; box-shadow:none; opacity:1;
-  }
-
-  /* ---------------- Forms ---------------- */
-  label{font-size:12.5px; font-weight:600; color:var(--muted); display:block; margin-bottom:6px}
-  input,select{
-    width:100%; background:var(--panel); border:1px solid var(--border);
-    border-radius:var(--radius-sm); padding:10px 11px; font-size:13.5px; color:var(--text);
-    transition:border-color .15s ease, box-shadow .15s ease;
-  }
-  input[type=number],input[type=date]{font-variant-numeric:tabular-nums}
-  input::placeholder{color:var(--faint)}
-  input:hover,select:hover{border-color:var(--border-strong)}
-  input:focus,select:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-weak)}
-  .field{margin-bottom:14px}
-  .row{display:flex; gap:14px}
-  .row > *{flex:1}
-
-  /* ---------------- Tables ---------------- */
-  table{width:100%; border-collapse:collapse; font-size:13.5px}
-  thead th{
-    background:var(--panel2); color:var(--muted); text-align:left; padding:11px 14px;
-    font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.07em;
-    border-bottom:1px solid var(--border); white-space:nowrap;
-  }
-  tbody td{
-    padding:11px 14px; border-top:1px solid var(--border); color:var(--text);
-    font-variant-numeric:tabular-nums;
-  }
-  tbody tr:hover td{background:var(--panel2)}
-  .table-wrap{border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow)}
-  .card .table-wrap{box-shadow:none}
-
-  /* ---------------- Badges ---------------- */
-  .badge{
-    display:inline-block; padding:3px 10px; border-radius:999px;
-    font-size:10.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
-    vertical-align:1px;
-  }
-  .badge-green{background:var(--brand-weak); color:var(--brand-text)}
-  .badge-gold{background:var(--warn-weak); color:var(--warn)}
-  .badge-red{background:var(--neg-weak); color:var(--neg)}
-
-  /* ---------------- Tabs ---------------- */
-  .tabs{
-    display:flex; gap:5px; background:var(--panel2); border:1px solid var(--border);
-    border-radius:999px; padding:5px; width:fit-content; margin-bottom:20px; flex-wrap:wrap;
-  }
-  .tab{
-    border:none; background:none; padding:7px 16px; border-radius:999px;
-    font-weight:600; font-size:13px; color:var(--muted); transition:.15s ease;
-  }
-  .tab:hover{color:var(--text)}
-  .tab.active{background:var(--panel); color:var(--brand-text); box-shadow:var(--shadow)}
-  .tab:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
-
-  /* ---------------- Callouts ---------------- */
-  .callout{
-    border-radius:12px; padding:13px 15px; font-size:13.5px; line-height:1.55;
-    margin:12px 0; border:1px solid transparent;
-  }
-  .callout b{font-weight:700}
-  .callout.success{background:var(--brand-weak); color:var(--brand-text); border-color:var(--brand-weak-2)}
-  .callout.error{background:var(--neg-weak); color:var(--neg); border-color:rgba(209,73,91,.20)}
-  /* AI result panel — the one place a gradient wash is allowed */
-  .callout.info{
-    background:rgba(109,90,230,.09); color:var(--text);
-    border-color:var(--ai-weak-2);
-  }
-
-  /* ---------------- Cart rows ---------------- */
-  .cart-row{
-    display:flex; align-items:center; gap:10px; padding:10px 0;
-    border-bottom:1px solid var(--border); font-size:13.5px;
-  }
-  .cart-row:last-child{border-bottom:none}
-  .cart-row .name{flex:2; font-weight:600}
-  .cart-row .qty, .cart-row .price, .cart-row .total{
-    flex:1; text-align:right; font-variant-numeric:tabular-nums; color:var(--muted);
-  }
-  .cart-row .total{color:var(--brand-text); font-weight:700}
-  .cart-row button{
-    background:none; border:1px solid transparent; color:var(--neg); font-size:14px;
-    border-radius:8px; padding:4px 7px; line-height:1; transition:.15s ease;
-  }
-  .cart-row button:hover{background:var(--neg-weak); border-color:rgba(209,73,91,.20)}
-  .cart-row button:focus-visible{outline:none; box-shadow:0 0 0 3px rgba(209,73,91,.20)}
-
-  /* ---------------- Product list ---------------- */
-  .product-item{
-    display:flex; gap:14px; align-items:center; padding:13px 0;
-    border-bottom:1px solid var(--border);
-  }
-  .product-item:last-child{border-bottom:none}
-  .avatar{
-    width:44px; height:44px; border-radius:11px; display:flex; align-items:center;
-    justify-content:center; color:#fff; font-weight:700; font-size:14px; flex:none;
-    letter-spacing:.02em;
-  }
-  .product-img{
-    width:44px; height:44px; border-radius:11px; object-fit:cover; flex:none;
-    background:var(--panel2);
-  }
-  .product-item .actions{
-    display:flex; gap:6px; flex:none;
-  }
-  .product-item .actions button{
-    background:none; border:1px solid var(--border); border-radius:8px;
-    padding:5px 9px; font-size:12.5px; color:var(--muted); transition:.15s ease;
-    line-height:1;
-  }
-  .product-item .actions button:hover{border-color:var(--border-strong); color:var(--text); background:var(--panel2)}
-
-  /* ---------------- Image preview (upload) ---------------- */
-  .img-preview-wrap{
-    margin-top:8px; display:none;
-  }
-  .img-preview-wrap img{
-    max-width:120px; max-height:120px; border-radius:8px;
-    border:1px solid var(--border); object-fit:cover;
-  }
-
-  /* ---------------- Edit modal ---------------- */
-  .modal-overlay{
-    position:fixed; inset:0; z-index:200; background:rgba(0,0,0,.35);
-    display:none; align-items:center; justify-content:center; padding:20px;
-    overflow-y:auto;
-  }
-  .modal-overlay.open{display:flex}
-  .modal-content{
-    background:var(--panel); border:1px solid var(--border);
-    border-radius:var(--radius); padding:24px; max-width:480px; width:100%;
-    box-shadow:var(--shadow-lg); max-height:90vh; overflow-y:auto;
-  }
-  .modal-content h3{margin-bottom:16px}
-  .modal-footer{
-    display:flex; gap:10px; justify-content:flex-end; margin-top:18px;
-  }
-
-  /* ---------------- AI coach ---------------- */
-  .coach-wrap{display:grid; grid-template-columns:1fr 260px; gap:var(--gutter)}
-  .chat-log{
-    height:440px; overflow-y:auto; display:flex; flex-direction:column; gap:12px;
-    padding:6px 4px; scrollbar-width:thin;
-  }
-  .chat-log::-webkit-scrollbar{width:9px}
-  .chat-log::-webkit-scrollbar-thumb{background:var(--border-strong); border-radius:8px; border:3px solid transparent; background-clip:padding-box}
-  .bubble{
-    max-width:80%; padding:11px 14px; border-radius:14px; font-size:13.5px; line-height:1.55;
-    box-shadow:var(--shadow);
-  }
-  .bubble.user{
-    align-self:flex-end; background:var(--brand); color:#fff;
-    border-bottom-right-radius:4px;
-  }
-  .bubble.ai{
-    align-self:flex-start; background:var(--panel2); color:var(--text);
-    border:1px solid var(--border); border-bottom-left-radius:4px; white-space:pre-wrap;
-  }
-  .chat-input{display:flex; gap:10px; margin-top:14px}
-  .chat-input input{flex:1}
-  .suggested{display:flex; flex-direction:column; gap:8px}
-  .suggested button{
-    text-align:left; background:var(--panel2); border:1px solid var(--border);
-    border-radius:var(--radius-sm); padding:10px 12px; font-size:12.5px;
-    color:var(--text); font-weight:600; transition:.15s ease;
-  }
-  .suggested button:hover{background:var(--ai-weak); border-color:var(--ai-weak-2); color:var(--ai)}
-  .suggested button:focus-visible{outline:none; box-shadow:0 0 0 3px var(--ai-weak-2)}
-
-  /* ---------------- Empty states & spinner ---------------- */
-  .empty{color:var(--faint); font-size:13px; padding:22px 0; text-align:center; font-weight:500}
-  td.empty{padding:22px 14px}
-  .spinner{
-    display:inline-block; width:14px; height:14px; border:2px solid var(--border);
-    border-top-color:var(--brand); border-radius:50%; animation:spin .7s linear infinite;
-    vertical-align:-2px; margin-right:7px;
-  }
-  @keyframes spin{to{transform:rotate(360deg)}}
-
-  /* ---------------- Responsive ---------------- */
-  /* ---------------- Header tools ---------------- */
-  .header-tools{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end}
-  .cur-select{
-    width:auto; min-width:104px; padding:8px 10px; font-size:12.5px; font-weight:600;
-    border-radius:var(--radius-sm); cursor:pointer;
-  }
-  .icon-btn{
-    width:38px; height:38px; flex:none; display:inline-flex; align-items:center; justify-content:center;
-    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-sm);
-    color:var(--muted); box-shadow:var(--shadow); transition:.15s ease;
-  }
-  .icon-btn:hover{color:var(--text); border-color:var(--border-strong); transform:translateY(-1px)}
-  .icon-btn:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
-  .icon-btn .i-sun{display:none}
-  html[data-theme="dark"] .icon-btn .i-sun{display:block}
-  html[data-theme="dark"] .icon-btn .i-moon{display:none}
-  #apiStatus{white-space:nowrap}
-
-  /* ---------------- Trend analytics ---------------- */
-  .trend-head{
-    display:flex; align-items:center; justify-content:space-between;
-    gap:14px; flex-wrap:wrap; margin:26px 0 14px;
-  }
-  .trend-head h3{font-size:15px}
-  .trend-head p{margin:2px 0 0; font-size:12.5px; color:var(--faint); font-weight:500}
-  .range-pills{
-    display:flex; gap:5px; background:var(--panel2); border:1px solid var(--border);
-    border-radius:999px; padding:5px; flex-wrap:wrap;
-  }
-  .range-pills button{
-    border:none; background:none; padding:6px 14px; border-radius:999px;
-    font-size:12.5px; font-weight:600; color:var(--muted); transition:.15s ease;
-  }
-  .range-pills button:hover{color:var(--text)}
-  .range-pills button.active{background:var(--panel); color:var(--brand-text); box-shadow:var(--shadow)}
-  .range-pills button:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
-
-  .trend-grid{display:grid; gap:var(--gutter); grid-template-columns:1fr}
-  .trend-card{
-    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
-    padding:18px; box-shadow:var(--shadow);
-  }
-  .trend-card .tc-head{
-    display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
-    flex-wrap:wrap; margin-bottom:4px;
-  }
-  .tc-title{display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; letter-spacing:-.01em}
-  .tc-title i{width:10px; height:10px; border-radius:3px; flex:none}
-  .tc-sub{font-size:12px; color:var(--faint); font-weight:500; margin-top:2px}
-  .tc-value{font-size:20px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums}
-  .tc-delta{font-size:11.5px; font-weight:700; letter-spacing:.02em; text-align:right; margin-top:2px}
-
-  .chart-wrap{position:relative; margin-top:14px}
-  .chart-plot{position:relative; height:170px}
-  .chart-plot svg{position:absolute; inset:0; width:100%; height:100%; overflow:visible}
-  .chart-hover{position:absolute; inset:0; display:flex}
-  .chart-cell{position:relative; flex:1}
-  .chart-cell .chart-dot{
-    position:absolute; width:9px; height:9px; border-radius:50%;
-    border:2px solid var(--panel); transform:translate(-50%,-50%); left:50%;
-    opacity:0; transition:opacity .12s ease; pointer-events:none;
-  }
-  .chart-cell .chart-tip{
-    position:absolute; left:50%; transform:translate(-50%,-100%);
-    background:var(--panel); border:1px solid var(--border); border-radius:9px;
-    box-shadow:var(--shadow-lg); padding:8px 11px; white-space:nowrap;
-    opacity:0; pointer-events:none; transition:opacity .12s ease; z-index:4;
-  }
-  .chart-cell:first-child .chart-tip{left:0; transform:translate(0,-100%)}
-  .chart-cell:last-child .chart-tip{left:100%; transform:translate(-100%,-100%)}
-  .chart-cell:hover .chart-dot, .chart-cell:hover .chart-tip{opacity:1}
-  .chart-cell:hover{background:linear-gradient(to right, transparent 49%, var(--border) 49%, var(--border) 51%, transparent 51%)}
-  .chart-tip .ct-m{font-size:11px; font-weight:700; color:var(--text)}
-  .chart-tip .ct-v{font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:2px}
-  .chart-xlabels{position:relative; height:16px; margin-top:8px}
-  .chart-xlabels span{
-    position:absolute; transform:translateX(-50%); font-size:10px; font-weight:600;
-    color:var(--faint); white-space:nowrap;
-  }
-  @media (min-width:1080px){ .trend-grid{grid-template-columns:repeat(3,1fr)} }
-  @media (max-width:560px){
-    .chart-plot{height:150px}
-    .chart-xlabels span:nth-child(even){display:none}
-  }
-
-  @media (max-width:1000px){
-    .coach-wrap{grid-template-columns:1fr}
-  }
-  @media (max-width:1140px){
-    .stat .label::after{display:none}
-  }
-  @media (max-width:900px){
-    .grid-2{grid-template-columns:1fr}
-  }
-  @media (max-width:760px){
-    .layout{flex-direction:column}
-    .sidebar{
-      width:100%; flex-flow:row wrap; align-items:center; gap:8px;
-      padding:14px 16px; border-right:none; border-bottom:1px solid var(--border);
-    }
-    .brand{padding:0 8px 0 0; flex:1 1 100%}
-    .navlabel{display:none}
-    .navbtn{width:auto; padding:8px 12px; border-radius:999px; background:var(--panel2)}
-    .navbtn.active{background:var(--brand-weak)}
-    .sidebar-footer{margin-top:6px; padding-top:6px; flex:1 1 100%}
-    header{padding:0 18px; height:auto; min-height:66px; flex-wrap:wrap; padding-top:12px; padding-bottom:12px}
-    .content{padding:18px 18px 48px}
-    .chat-log{height:360px}
-  }
-  @media (max-width:520px){
-    .row{flex-direction:column; gap:0}
-    .row > *{flex:auto}
-    #apiStatus{display:none}
-    .tabs{width:100%}
-    .tab{flex:1 1 auto; text-align:center}
-    .bubble{max-width:92%}
-    .stat .value{font-size:22px}
-    .cart-row{flex-wrap:wrap}
-    .cart-row .name{flex:1 1 100%}
-  }
-  @media (max-width:380px){
-    .content{padding:14px 12px 40px}
-    .card{padding:15px}
-    header{padding-left:12px; padding-right:12px}
-    .sidebar{padding:12px}
-  }
-
-  @media (prefers-reduced-motion: reduce){
-    *,*::before,*::after{animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important}
-    .card:hover,.btn:hover,.sidebar-card button:hover{transform:none}
-    .page.active{animation:none}
-  }
-</style>
-</head>
-<body>
-
-<div class="layout">
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="mark">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V8"></path></svg>
-      </div>
-      <div>
-        <div class="name">Ledgerly</div>
-        <div class="tag">Billing &amp; Stock</div>
-      </div>
-    </div>
-    <div class="navlabel">Menu</div>
-    <button class="navbtn active" data-page="home">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5L12 3l9 7.5"></path><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"></path></svg>
-      <span>Home</span>
-    </button>
-    <button class="navbtn" data-page="billing">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"></path><path d="M9 9h6M9 13h6M9 17h4"></path></svg>
-      <span>Billing</span>
-    </button>
-    <button class="navbtn" data-page="sales">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4M4 20h16M8 16l3-4 3 2 4-6"></path></svg>
-      <span>Sales</span>
-    </button>
-    <button class="navbtn" data-page="dashboard">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"></rect><rect x="14" y="3" width="7" height="5" rx="1.5"></rect><rect x="14" y="12" width="7" height="9" rx="1.5"></rect><rect x="3" y="16" width="7" height="5" rx="1.5"></rect></svg>
-      <span>Dashboard</span>
-    </button>
-    <button class="navbtn" data-page="stock">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"></path><path d="M3 8v8l9 5 9-5V8"></path><path d="M12 13v8"></path></svg>
-      <span>Stock</span>
-    </button>
-    <button class="navbtn" data-page="coach">
-      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.6 3.9L18 8l-3.4 1.5L12 13l-1.6-3.5L7 8l3.4-1.1L12 3z"></path><path d="M18 14l.8 2 2 .8-2 .8L18 20l-.8-2-2-.8 2-.8.8-2z"></path></svg>
-      <span>AI Coach</span>
-    </button>
-    <div class="sidebar-footer">
-      <div class="sidebar-card">
-        <p>Ask the AI Coach about your revenue, slow stock, or which customers to chase for payment.</p>
-        <button onclick="goTo('coach')">Ask the coach</button>
-      </div>
-    </div>
-  </aside>
-
-  <!-- MAIN -->
-  <div class="main">
-    <header>
-      <div>
-        <h1 id="pageTitle">Home</h1>
-        <p id="pageSubtitle">Overview of your shop</p>
-      </div>
-      <div class="header-tools">
-        <label for="currencySelect" class="sr-only" style="position:absolute;left:-9999px">Currency</label>
-        <select id="currencySelect" class="cur-select" onchange="setCurrency(this.value)"></select>
-        <button class="icon-btn" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
-          <svg class="i-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
-          <svg class="i-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"></circle><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5.6 5.6L4.2 4.2M19.8 19.8l-1.4-1.4M18.4 5.6l1.4-1.4M4.2 19.8l1.4-1.4"></path></svg>
-        </button>
-        <div id="apiStatus" class="mono" style="font-size:11.5px;color:var(--faint)"></div>
-      </div>
-    </header>
-
-    <div class="content">
-
-      <!-- HOME -->
-      <section class="page active" id="page-home">
-        <div class="grid grid-4" id="homeStats"></div>
-        <div class="callout info" style="margin-top:18px">
-          You could use the sidebar to go to <b>Billing</b> to create a bill, <b>Sales</b> for history,
-          <b>Dashboard</b> for profit/loss and AI insights, <b>Stock</b> to manage inventory, or
-          <b>AI Coach</b> to ask.
-        </div>
-      </section>
-
-      <!-- BILLING -->
-      <section class="page" id="page-billing">
-        <div class="tabs">
-          <button class="tab active" data-tab="newbill">Make a Bill</button>
-          <button class="tab" data-tab="register">Register Customer</button>
-          <button class="tab" data-tab="payments">Record Payment</button>
-          <button class="tab" data-tab="outstanding">Outstanding Balances</button>
-        </div>
-
-        <div class="tabpane active" id="tab-newbill">
-          <div class="grid grid-2">
-            <div class="card">
-              <h3>New bill</h3>
-              <div class="field">
-                <label>Customer</label>
-                <select id="billCustomer"><option value="">Walk-in (no record)</option></select>
-              </div>
-              <div class="row">
-                <div class="field">
-                  <label>Product</label>
-                  <select id="billProduct"></select>
-                </div>
-                <div class="field" style="max-width:100px">
-                  <label>Qty</label>
-                  <input id="billQty" type="number" min="1" value="1">
-                </div>
-              </div>
-              <button class="btn secondary" onclick="addToCart()">Add to bill</button>
-              <div id="cartError"></div>
-            </div>
-            <div class="card">
-              <h3>Current bill</h3>
-              <div id="cartItems"><p class="empty">No items yet — add products on the left.</p></div>
-              <div id="cartTotal"></div>
-              <div class="field" style="margin-top:12px">
-                <label>Payment mode</label>
-                <select id="payMode"><option>Cash</option><option>Card</option></select>
-              </div>
-              <div class="field">
-                <label>Amount paid now</label>
-                <input id="paidAmount" type="number" min="0" step="1" value="0">
-              </div>
-              <div id="billStatus"></div>
-              <button class="btn" id="finalizeBtn" onclick="finalizeBill()">Finalize bill</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="tabpane" id="tab-register" style="display:none">
-          <div class="grid grid-2">
-            <div class="card">
-              <h3>Register a new customer</h3>
-              <div class="field"><label>Customer name</label><input id="custName"></div>
-              <div class="field"><label>Mobile number</label><input id="custMobile"></div>
-              <div id="custStatus"></div>
-              <button class="btn" onclick="registerCustomer()">Register</button>
-            </div>
-            <div class="card">
-              <h3>All registered customers</h3>
-              <div class="table-wrap"><table id="custTable"><thead><tr><th>ID</th><th>Name</th><th>Mobile</th></tr></thead><tbody></tbody></table></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="tabpane" id="tab-payments" style="display:none">
-          <div class="card">
-            <h3>Record a payment against an existing bill</h3>
-            <div id="unpaidBillsWrap"></div>
-          </div>
-        </div>
-
-        <div class="tabpane" id="tab-outstanding" style="display:none">
-          <div class="card">
-            <h3>Money unpaid / balance due</h3>
-            <div class="table-wrap"><table id="outstandingTable"><thead><tr><th>Customer</th><th>Mobile</th><th>Bills</th><th>Total unpaid (<span class="cur-sym">₹</span>)</th></tr></thead><tbody></tbody></table></div>
-          </div>
-          <div class="card" style="margin-top:16px">
-            <h3> AI: who pays on time, who doesn't</h3>
-            <button class="btn gold" onclick="runAI('payment-behavior', 'paymentAiOut')">Generate payment behavior analysis</button>
-            <div id="paymentAiOut"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- SALES -->
-      <section class="page" id="page-sales">
-        <div class="row" style="margin-bottom:16px">
-          <div class="field"><label>Period</label>
-            <select id="salesPeriod" onchange="onSalesPeriodChange()">
-              <option>Today</option><option>This Week</option><option selected>This Month</option><option>All Time</option><option>Custom Range</option>
-            </select>
-          </div>
-          <div class="field"><label>Customer</label><select id="salesCustomer"><option value="">All customers</option></select></div>
-        </div>
-        <div class="row" id="salesCustomRange" style="display:none">
-          <div class="field"><label>Start date</label><input type="date" id="salesStart"></div>
-          <div class="field"><label>End date</label><input type="date" id="salesEnd"></div>
-        </div>
-        <button class="btn secondary" onclick="loadSales()">Apply filters</button>
-        <div class="grid grid-4" style="margin:18px 0" id="salesStats"></div>
-
-        <div class="trend-head">
-          <div>
-            <h3>Monthly trends</h3>
-            <p>Revenue, collections and unpaid balance over time</p>
-          </div>
-          <div class="range-pills" id="trendRange">
-            <button data-range="6" onclick="setTrendRange('6')">Last 6 months</button>
-            <button class="active" data-range="12" onclick="setTrendRange('12')">Last 12 months</button>
-            <button data-range="all" onclick="setTrendRange('all')">All Time</button>
-          </div>
-        </div>
-        <div class="grid grid-4" style="margin-bottom:var(--gutter)" id="trendSummary"></div>
-        <div class="trend-grid" id="trendCharts"></div>
-
-        <h3 style="margin:26px 0 10px">Bills</h3>
-        <div id="billsList"></div>
-      </section>
-
-      <!-- DASHBOARD -->
-      <section class="page" id="page-dashboard">
-        <div class="row" style="margin-bottom:16px">
-          <div class="field"><label>Period</label>
-            <select id="dashPeriod" onchange="onDashPeriodChange()">
-              <option>Today</option><option>This Week</option><option selected>This Month</option><option>All Time</option><option>Custom Range</option>
-            </select>
-          </div>
-        </div>
-        <div class="row" id="dashCustomRange" style="display:none">
-          <div class="field"><label>Start date</label><input type="date" id="dashStart"></div>
-          <div class="field"><label>End date</label><input type="date" id="dashEnd"></div>
-        </div>
-        <button class="btn secondary" onclick="loadDashboard()">Apply filters</button>
-
-        <h3 style="margin:18px 0 10px">Profit &amp; Loss</h3>
-        <div class="grid grid-4" id="dashStats"></div>
-        <div id="dashCallout"></div>
-
-        <h3 style="margin:22px 0 10px">Product performance</h3>
-        <div class="grid grid-2">
-          <div class="card"><h3>Top selling products</h3><div id="topProducts"></div></div>
-          <div class="card"><h3> Not selling / slow-moving</h3><div id="slowProducts"></div></div>
-        </div>
-
-        <div class="card" style="margin-top:18px">
-          <h3> AI: what can be done to improve sales</h3>
-          <button class="btn gold" onclick="runSalesAI()">Generate sales insights</button>
-          <div id="salesAiOut"></div>
-        </div>
-      </section>
-
-      <!-- STOCK -->
-      <section class="page" id="page-stock">
-        <div class="tabs">
-          <button class="tab active" data-tab="checkstock">Check Stock</button>
-          <button class="tab" data-tab="additem">Add Item</button>
-          <button class="tab" data-tab="reorderai">AI Reorder Advice</button>
-        </div>
-
-        <div class="tabpane active" id="tab-checkstock">
-          <div class="card">
-            <h3>Current inventory</h3>
-            <div id="productList"></div>
-          </div>
-          <div class="card" style="margin-top:16px">
-            <h3>Restock an existing item</h3>
-            <div class="row">
-              <div class="field"><label>Product</label><select id="restockProduct"></select></div>
-              <div class="field" style="max-width:120px"><label>Qty to add</label><input id="restockQty" type="number" min="1" value="1"></div>
-            </div>
-            <div id="restockStatus"></div>
-            <button class="btn" onclick="restock()">Add stock</button>
-          </div>
-        </div>
-
-        <div class="tabpane" id="tab-additem" style="display:none">
-          <div class="card">
-            <h3>Add a new product</h3>
-            <div class="field"><label>Product name</label><input id="prodName"></div>
-            <div class="row">
-              <div class="field"><label>Cost price (<span class="cur-sym">₹</span>)</label><input id="prodCost" type="number" min="0" step="1" value="0"></div>
-              <div class="field"><label>Selling price (<span class="cur-sym">₹</span>)</label><input id="prodSell" type="number" min="0" step="1" value="0"></div>
-            </div>
-            <div class="row">
-              <div class="field"><label>Initial stock qty</label><input id="prodStock" type="number" min="0" step="1" value="0"></div>
-              <div class="field"><label>Reorder alert level</label><input id="prodReorder" type="number" min="0" step="1" value="5"></div>
-            </div>
-            <div class="field">
-              <label>Product image</label>
-              <input type="file" id="prodImage" accept="image/*" onchange="previewProductImage(event)">
-              <div class="img-preview-wrap" id="prodImagePreview">
-                <img id="prodImagePreviewImg" alt="Image preview">
-              </div>
-            </div>
-            <div id="prodStatus"></div>
-            <button class="btn" onclick="addProduct()">Add product</button>
-          </div>
-        </div>
-
-        <div class="tabpane" id="tab-reorderai" style="display:none">
-          <div class="card">
-            <h3> AI: what needs to be ordered, what must be avoided</h3>
-            <div id="lowStockCallout"></div>
-            <button class="btn gold" onclick="runAI('stock-insights', 'stockAiOut')">Generate stock recommendations</button>
-            <div id="stockAiOut"></div>
-          </div>
-        </div>
-
-        <!-- Edit product modal -->
-        <div class="modal-overlay" id="editModal">
-          <div class="modal-content">
-            <h3>Edit product</h3>
-            <input type="hidden" id="editProdId">
-            <div class="field"><label>Product name</label><input id="editProdName"></div>
-            <div class="row">
-              <div class="field"><label>Cost price (<span class="cur-sym">₹</span>)</label><input id="editProdCost" type="number" min="0" step="1" value="0"></div>
-              <div class="field"><label>Selling price (<span class="cur-sym">₹</span>)</label><input id="editProdSell" type="number" min="0" step="1" value="0"></div>
-            </div>
-            <div class="row">
-              <div class="field"><label>Stock qty</label><input id="editProdStock" type="number" min="0" step="1" value="0"></div>
-              <div class="field"><label>Reorder level</label><input id="editProdReorder" type="number" min="0" step="1" value="5"></div>
-            </div>
-            <div class="field">
-              <label>Product image</label>
-              <input type="file" id="editProdImage" accept="image/*" onchange="previewEditProductImage(event)">
-              <div class="img-preview-wrap" id="editProdImagePreview">
-                <img id="editProdImagePreviewImg" alt="Image preview">
-              </div>
-            </div>
-            <div id="editProdStatus"></div>
-            <div class="modal-footer">
-              <button class="btn secondary" onclick="closeEditModal()">Cancel</button>
-              <button class="btn" onclick="saveEditProduct()">Save changes</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- AI COACH -->
-      <section class="page" id="page-coach">
-        <div class="coach-wrap">
-          <div class="card">
-            <h3>Ask the AI Coach</h3>
-            <div class="chat-log" id="chatLog">
-              <div class="bubble ai">Hi! I can help you with revenue, pricing, slow stock, or which customers to chase for payment.</div>
-            </div>
-            <div class="chat-input">
-              <input id="chatInput" placeholder="Ask something..." onkeydown="if(event.key==='Enter') sendChat()">
-              <button class="btn" onclick="sendChat()">Send</button>
-            </div>
-          </div>
-          <div class="card">
-            <h3 style="font-size:13px">Suggested questions</h3>
-            <div class="suggested">
-              <button onclick="askSuggested('Should I increase my prices?')">Should I increase my prices?</button>
-              <button onclick="askSuggested('How can I increase profit?')">How can I increase profit?</button>
-              <button onclick="askSuggested('Which customers should I chase for payment?')">Which customers should I chase?</button>
-              <button onclick="askSuggested('What should I restock soon?')">What should I restock soon?</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-    </div>
-  </div>
-</div>
-
-<script>
-// ===================================================================
-// MOCK DATA LAYER — no backend required.
-// Everything below stands in for the API. To go live, delete this
-// block and restore the real fetch-based api() (see api() note below).
-// TODO: Replace mock data with backend API
-// ===================================================================
-const STORED_PRODUCTS_KEY = 'ledgerly.products';
-
-const MOCK = {
-  customers: [
-    {id:1, name:'Rohan Sharma', mobile:'9876500001'},
-    {id:2, name:'Priya Verma',  mobile:'9876500002'},
-    {id:3, name:'Amit Singh',   mobile:'9876500003'},
-    {id:4, name:'Neha Gupta',   mobile:'9876500004'},
-  ],
-  products: [
-    {id:1, name:'Notebook',          cost_price:20,  sell_price:35,  stock_qty:50,  reorder_level:5,  image_data:null},
-    {id:2, name:'Ballpoint Pen',     cost_price:5,   sell_price:10,  stock_qty:100, reorder_level:20, image_data:null},
-    {id:3, name:'Stapler',           cost_price:40,  sell_price:65,  stock_qty:20,  reorder_level:3,  image_data:null},
-    {id:4, name:'A4 Paper Ream',     cost_price:180, sell_price:250, stock_qty:15,  reorder_level:3,  image_data:null},
-    {id:5, name:'Whiteboard Marker', cost_price:15,  sell_price:30,  stock_qty:40,  reorder_level:8,  image_data:null},
-    {id:6, name:'Sticky Notes Pack', cost_price:25,  sell_price:45,  stock_qty:30,  reorder_level:5,  image_data:null},
-  ],
-  bills: [],       // filled as you finalize bills in the UI
-  billItems: {},   // bill id -> line items
-  nextCustomerId: 5,
-  nextProductId: 7,
-  nextBillId: 1,
-};
-
-function saveProducts(){
-  try{ localStorage.setItem(STORED_PRODUCTS_KEY, JSON.stringify(MOCK.products)); }catch(e){}
-}
-function loadSavedProducts(){
-  try{
-    const saved = localStorage.getItem(STORED_PRODUCTS_KEY);
-    if(!saved) return;
-    const parsed = JSON.parse(saved);
-    if(!Array.isArray(parsed) || !parsed.length) return;
-    MOCK.products = parsed;
-    MOCK.nextProductId = Math.max.apply(null, parsed.map(p => p.id)) + 1;
-  }catch(e){}
-}
-
-const MOCK_AI = {
-  'payment-behavior': "Right now every customer is paid up, so there's no risk to flag yet.\n\nOnce a few bills go out on credit I'll rank who settles quickly and who drags, and point out anyone whose balance is getting large relative to what they've actually paid. A simple habit that helps: set an informal credit limit per customer and send a nudge at the 7-day mark.",
-  'stock-insights': "Nothing is critically low at the moment — every item is comfortably above its reorder level.\n\nTwo things worth watching: Ballpoint Pens (100 units against a reorder level of 20) and Notebooks (50 units) are your deepest stock, so I'd hold off reordering those. A4 Paper Ream sits at 15 with a reorder level of 3 — it's your highest-value item, so keep an eye on it once sales pick up.",
-  'sales-insights': "No sales recorded in this period yet, so there's nothing to judge performance on.\n\nOnce bills start coming through I'll tell you which products are actually carrying your profit and which are just taking up shelf space. Based on margins alone, Sticky Notes Pack (₹20/unit) and Whiteboard Marker (₹15/unit) are your best earners per sale — worth pushing first.",
-};
-
-// Topics this assistant is allowed to answer on. Anything outside this list
-// gets a polite refusal rather than a made-up answer.
-const BUSINESS_TOPICS = [
-  'invoice','invoices','bill','bills','billing','sale','sales','revenue','income','turnover',
-  'expense','expenses','cost','costs','spend','spending','profit','loss','margin','markup',
-  'price','pricing','discount','customer','customers','client','clients','payment','payments',
-  'paid','unpaid','owe','owes','owed','due','outstanding','balance','credit','collect',
-  'chase','stock','inventory','restock','reorder','product','products','item','items',
-  'supplier','vendor','purchase','analytics','report','reports','trend','trends','forecast',
-  'dashboard','cash','cashflow','money','budget','tax','gst','business','shop','store',
-  'performance','growth','slow','fast','selling','sell','order','orders','quantity','units',
-  'currency','month','monthly','week','weekly','today','summary','total',
-  'increase','raise','lower','reduce','charge','earn','owing','overdue','invoicing',
-];
-
-const OFF_TOPIC_REPLY = "I'm your Business Assistant, so I can help with invoices, expenses, customers, sales analytics, reports, and financial insights. I can't answer unrelated questions such as general knowledge or entertainment.";
-
-function isBusinessQuestion(text){
-  const l = text.toLowerCase();
-  return BUSINESS_TOPICS.some(k => l.includes(k));
-}
-
-function mockCoachReply(msg){
-  const l = msg.toLowerCase();
-
-  if(!isBusinessQuestion(msg)) return OFF_TOPIC_REPLY;
-
-  const bills = MOCK.bills;
-  const revenue = bills.reduce((s,b) => s + b.total_amount, 0);
-  const collected = bills.reduce((s,b) => s + b.paid_amount, 0);
-  const due = bills.reduce((s,b) => s + b.balance_due, 0);
-  const lowStock = MOCK.products.filter(p => p.stock_qty <= p.reorder_level);
-
-  if(l.includes('price') || l.includes('pricing') || l.includes('margin') || l.includes('discount')){
-    const best = MOCK.products.slice().sort((a,b) =>
-      ((b.sell_price - b.cost_price) / b.sell_price) - ((a.sell_price - a.cost_price) / a.sell_price))[0];
-    const pct = Math.round(((best.sell_price - best.cost_price) / best.sell_price) * 100);
-    return "Your margins are in decent shape — " + best.name + " is your strongest at about " + pct + "%. I wouldn't raise everything at once. Pick one or two fast movers, try a 3-5% increase, and watch whether volume holds for a couple of weeks before going wider.";
-  }
-  if(l.includes('profit') || l.includes('loss') || l.includes('grow') || l.includes('increase')){
-    const profit = revenue - bills.reduce((s,b) => {
-      return s + (MOCK.billItems[b.id] || []).reduce((t,i) => {
-        const p = MOCK.products.find(x => x.name === i.product_name);
-        return t + i.quantity * (p ? p.cost_price : 0);
-      }, 0);
-    }, 0);
-    return "Across all your billing so far you've done " + money(revenue) + " in revenue against roughly " + money(profit) + " in gross profit. The fastest lever right now is collection, not sales — " + money(due) + " is still sitting unpaid. Getting even half of that in beats chasing new orders this month.";
-  }
-  if(l.includes('chase') || l.includes('owe') || l.includes('unpaid') || l.includes('due') || l.includes('collect') || l.includes('payment')){
-    if(due <= 0) return "Nothing outstanding — every bill is settled. When that changes I'd start with whoever has the largest balance sitting past a week rather than chasing everyone at once.";
-    const worst = {};
-    bills.filter(b => b.balance_due > 0 && b.customer_name).forEach(b => {
-      worst[b.customer_name] = (worst[b.customer_name] || 0) + b.balance_due;
-    });
-    const ranked = Object.entries(worst).sort((a,b) => b[1] - a[1]);
-    const top = ranked.slice(0,2).map(r => r[0] + " (" + money(r[1]) + ")").join(' and ');
-    return money(due) + " is unpaid across " + ranked.length + " customers. Start with " + top + " — that's the bulk of it. A short, friendly reminder works better than a formal notice at this stage.";
-  }
-  if(l.includes('restock') || l.includes('reorder') || l.includes('stock') || l.includes('inventory')){
-    if(!lowStock.length){
-      const deepest = MOCK.products.slice().sort((a,b) => b.stock_qty - a.stock_qty)[0];
-      return "Nothing needs reordering today — everything is above its reorder level. " + deepest.name + " is your deepest at " + deepest.stock_qty + " units, so I'd hold off on that one. Check back once a few more bills go through.";
-    }
-    return "These are at or below their reorder level: " + lowStock.map(p => p.name + " (" + p.stock_qty + ")").join(', ') + ". I'd order those first and leave everything else alone this cycle.";
-  }
-  if(l.includes('slow') || l.includes('not selling') || l.includes('best') || l.includes('top')){
-    return "Open the Dashboard and set the period to All Time — the top-sellers and slow-movers panels there rank every product by units sold. Anything showing zero over a full quarter is worth discounting to clear rather than restocking.";
-  }
-  if(l.includes('revenue') || l.includes('sales') || l.includes('trend') || l.includes('month') || l.includes('analytics') || l.includes('report') || l.includes('summary')){
-    return "You're at " + money(revenue) + " billed and " + money(collected) + " actually collected, which is about " + Math.round((collected/(revenue||1))*100) + "% of what you invoiced. The Sales page now charts revenue, collections and unpaid balance month by month — the gap between the first two lines is the one to watch.";
-  }
-  if(l.includes('customer') || l.includes('client')){
-    return "You have " + MOCK.customers.length + " registered customers and " + bills.length + " bills on record. Worth knowing: walk-in sales can't carry a balance, so anyone you extend credit to should be registered first.";
-  }
-  return "I can dig into your sales, pricing, stock levels, profit, or unpaid balances. Tell me which of those you're thinking about and I'll give you something specific from your own numbers.";
-}
-
-let _seed = 20260725;
-function rnd(){ _seed = (_seed * 1103515245 + 12345) & 0x7fffffff; return _seed / 0x7fffffff; }
-function pick(arr){ return arr[Math.floor(rnd() * arr.length)]; }
-
-(function seedHistory(){
-  const now = new Date();
-  for(let back = 11; back >= 0; back--){
-    const month = new Date(now.getFullYear(), now.getMonth() - back, 1);
-    const billCount = 3 + Math.floor(rnd() * 4);
-    const growth = 1 + (11 - back) * 0.06;
-    for(let n = 0; n < billCount; n++){
-      const day = 2 + Math.floor(rnd() * 26);
-      const date = new Date(month.getFullYear(), month.getMonth(), day, 10 + Math.floor(rnd()*8), 15);
-      if(date > now) continue;
-      const lineCount = 1 + Math.floor(rnd() * 3);
-      const items = [];
-      let total = 0;
-      for(let k = 0; k < lineCount; k++){
-        const prod = pick(MOCK.products);
-        const qty = Math.max(1, Math.round((1 + rnd() * 5) * growth));
-        items.push({product_name: prod.name, quantity: qty, price_each: prod.sell_price});
-        total += qty * prod.sell_price;
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Expense Calc — AI-Powered Business Management for Small Businesses</title>
+    <meta
+      name="description"
+      content="Create invoices, manage inventory, track customers and payments, view analytics, and get AI insights — all from one smart dashboard."
+    />
+    <meta name="theme-color" content="#2E9B5D" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Expense Calc" />
+    <meta
+      property="og:title"
+      content="Expense Calc — Run Your Entire Business From One Smart Dashboard"
+    />
+    <meta
+      property="og:description"
+      content="AI-powered business management for small businesses. Invoices, inventory, payments, analytics, and insights in one place."
+    />
+    <meta property="og:image" content="/og-image.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Expense Calc — AI-Powered Business Management"
+    />
+    <meta
+      name="twitter:description"
+      content="Create invoices, manage inventory, track payments, and make smarter decisions with AI."
+    />
+    <meta name="twitter:image" content="/og-image.svg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Expense Calc",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "description": "AI-powered business management software for small businesses. Invoices, inventory, customers, payments, analytics, and AI insights.",
+        "offers": {
+          "@type": "AggregateOffer",
+          "lowPrice": "29",
+          "highPrice": "199",
+          "priceCurrency": "USD"
+        }
       }
-      const onCredit = rnd() < 0.28;
-      const cust = onCredit || rnd() < 0.6 ? pick(MOCK.customers) : null;
-      const paid = !cust ? total
-        : onCredit ? Math.round(total * (rnd() * 0.6)) : total;
-      const bill = {
-        id: MOCK.nextBillId++,
-        customer_id: cust ? cust.id : null,
-        customer_name: cust ? cust.name : null,
-        bill_date: date.toISOString().slice(0,19).replace('T',' '),
-        total_amount: total,
-        paid_amount: paid,
-        balance_due: Math.round((total - paid) * 100) / 100,
-        payment_mode: pick(['Cash','Card']),
-      };
-      MOCK.bills.push(bill);
-      MOCK.billItems[bill.id] = items;
-    }
-  }
-  MOCK.bills.sort((a,b) => a.bill_date < b.bill_date ? -1 : 1);
-})();
-
-// Restore any user-saved products (images, edits, adds, deletes)
-loadSavedProducts();
-
-function mockDelay(ms){ return new Promise(r => setTimeout(r, ms)); }
-function findProduct(id){ return MOCK.products.find(p => p.id === Number(id)); }
-function findProductIndex(id){ return MOCK.products.findIndex(p => p.id === Number(id)); }
-function inRange(dateStr, start, end){
-  const d = String(dateStr).slice(0,10);
-  return (!start || d >= start) && (!end || d <= end);
-}
-const AVATAR_COLORS = ['#585F7C','#5237B2','#F59F00','#E64980','#7048E8','#12B886','#F76707'];
-function colorFor(name){ let h=0; for(const c of name) h = (h*31 + c.charCodeAt(0)) % AVATAR_COLORS.length; return AVATAR_COLORS[h]; }
-function initials(name){ return name.split(' ').slice(0,2).map(w=>w[0]||'').join('').toUpperCase(); }
-// ===================================================================
-// PREFERENCES — theme + currency, persisted in localStorage.
-// ===================================================================
-const STORE_KEYS = {theme:'ledgerly.theme', currency:'ledgerly.currency', range:'ledgerly.trendRange'};
-
-const CURRENCIES = {
-  USD:{symbol:'$',  name:'US Dollar',        locale:'en-US', decimals:2, rate:1},
-  EUR:{symbol:'€',  name:'Euro',             locale:'de-DE', decimals:2, rate:1},
-  GBP:{symbol:'£',  name:'British Pound',    locale:'en-GB', decimals:2, rate:1},
-  JPY:{symbol:'¥',  name:'Japanese Yen',     locale:'ja-JP', decimals:0, rate:1},
-  CNY:{symbol:'¥',  name:'Chinese Yuan',     locale:'zh-CN', decimals:2, rate:1},
-  AUD:{symbol:'A$', name:'Australian Dollar',locale:'en-AU', decimals:2, rate:1},
-  CAD:{symbol:'C$', name:'Canadian Dollar',  locale:'en-CA', decimals:2, rate:1},
-  INR:{symbol:'₹',  name:'Indian Rupee',     locale:'en-IN', decimals:2, rate:1},
-  SGD:{symbol:'S$', name:'Singapore Dollar', locale:'en-SG', decimals:2, rate:1},
-  VND:{symbol:'₫',  name:'Vietnamese Dong',  locale:'vi-VN', decimals:0, rate:1},
-};
-let activeCurrency = 'INR';
-
-function currency(){ return CURRENCIES[activeCurrency] || CURRENCIES.INR; }
-
-function money(n){
-  const c = currency();
-  const value = Number(n || 0) * c.rate;
-  const num = value.toLocaleString(c.locale, {minimumFractionDigits:c.decimals, maximumFractionDigits:c.decimals});
-  return activeCurrency === 'VND' ? num + c.symbol : c.symbol + num;
-}
-const inr = money;
-
-function moneyShort(n){
-  const c = currency();
-  const v = Math.abs(Number(n || 0) * c.rate);
-  const s = v >= 1e7 ? (v/1e7).toFixed(1).replace(/\.0$/,'') + 'Cr'
-          : v >= 1e5 ? (v/1e5).toFixed(1).replace(/\.0$/,'') + 'L'
-          : v >= 1000 ? (v/1000).toFixed(1).replace(/\.0$/,'') + 'k'
-          : String(Math.round(v));
-  return activeCurrency === 'VND' ? s + c.symbol : c.symbol + s;
-}
-
-function setCurrency(code){
-  if(!CURRENCIES[code]) return;
-  activeCurrency = code;
-  try{ localStorage.setItem(STORE_KEYS.currency, code); }catch(e){}
-  applyCurrency();
-  refreshCurrentPage();
-}
-
-function applyCurrency(){
-  const sel = document.getElementById('currencySelect');
-  if(sel){
-    if(!sel.options.length){
-      sel.innerHTML = Object.keys(CURRENCIES)
-        .map(code => '<option value="' + code + '">' + code + ' ' + CURRENCIES[code].symbol + '</option>').join('');
-    }
-    sel.value = activeCurrency;
-    sel.title = currency().name;
-  }
-  document.querySelectorAll('.cur-sym').forEach(el => { el.textContent = currency().symbol; });
-}
-
-function setTheme(mode){
-  document.documentElement.setAttribute('data-theme', mode);
-  try{ localStorage.setItem(STORE_KEYS.theme, mode); }catch(e){}
-  const btn = document.getElementById('themeToggle');
-  if(btn) btn.setAttribute('aria-pressed', String(mode === 'dark'));
-  renderTrends();
-}
-function toggleTheme(){
-  setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
-}
-
-function initPreferences(){
-  let theme = null, cur = null, range = null;
-  try{
-    theme = localStorage.getItem(STORE_KEYS.theme);
-    cur = localStorage.getItem(STORE_KEYS.currency);
-    range = localStorage.getItem(STORE_KEYS.range);
-  }catch(e){}
-  if(!theme) theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  if(cur && CURRENCIES[cur]) activeCurrency = cur;
-  if(range) trendRange = range;
-  document.documentElement.setAttribute('data-theme', theme);
-  applyCurrency();
-  document.querySelectorAll('#trendRange button').forEach(b =>
-    b.classList.toggle('active', b.dataset.range === trendRange));
-}
-
-function refreshCurrentPage(){
-  const active = document.querySelector('.page.active');
-  const page = active ? active.id.replace('page-', '') : 'home';
-  const loaders = {home:loadHome, billing:loadBillingTab, sales:loadSales, dashboard:loadDashboard, stock:loadStock};
-  if(loaders[page]) loaders[page]();
-}
-
-function cssVar(name){
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
-function todayStr(){ return new Date().toISOString().slice(0,10); }
-
-async function api(path, opts={}){
-  await mockDelay(140);
-  const method = (opts.method || 'GET').toUpperCase();
-  const body = opts.body ? JSON.parse(opts.body) : {};
-  const [route, qs] = path.split('?');
-  const q = new URLSearchParams(qs || '');
-  const start = q.get('start_date'), end = q.get('end_date');
-  const m = (re) => route.match(re);
-
-  // ---- Summary ----
-  if(route === '/api/summary'){
-    return {
-      total_customers: MOCK.customers.length,
-      total_products: MOCK.products.length,
-      total_bills: MOCK.bills.length,
-      total_due: MOCK.bills.reduce((s,b) => s + b.balance_due, 0),
-    };
-  }
-
-  // ---- Customers ----
-  if(route === '/api/customers/outstanding'){
-    const byCustomer = {};
-    MOCK.bills.filter(b => b.balance_due > 0 && b.customer_id).forEach(b => {
-      const c = MOCK.customers.find(x => x.id === b.customer_id);
-      if(!c) return;
-      byCustomer[c.id] = byCustomer[c.id] || {name:c.name, mobile:c.mobile, bill_count:0, total_due:0};
-      byCustomer[c.id].bill_count++;
-      byCustomer[c.id].total_due += b.balance_due;
-    });
-    return Object.values(byCustomer).sort((a,b) => b.total_due - a.total_due);
-  }
-  if(route === '/api/customers' && method === 'GET') return MOCK.customers.slice();
-  if(route === '/api/customers' && method === 'POST'){
-    if(MOCK.customers.some(c => c.mobile === body.mobile))
-      throw new Error('A customer with this mobile number already exists.');
-    const c = {id: MOCK.nextCustomerId++, name: body.name, mobile: body.mobile};
-    MOCK.customers.push(c);
-    return c;
-  }
-
-  // ---- Products ----
-  if(route === '/api/products/low-stock')
-    return MOCK.products.filter(p => p.stock_qty <= p.reorder_level);
-  if(route === '/api/products' && method === 'GET') return MOCK.products.slice();
-  if(route === '/api/products' && method === 'POST'){
-    const p = {
-      id: MOCK.nextProductId++, name: body.name,
-      cost_price: body.cost_price, sell_price: body.sell_price,
-      stock_qty: body.stock_qty, reorder_level: body.reorder_level,
-      image_data: body.image_data || null,
-    };
-    MOCK.products.push(p);
-    saveProducts();
-    return {id: p.id, warning: p.sell_price < p.cost_price};
-  }
-  if(m(/^\/api\/products\/(\d+)\/restock$/) && method === 'POST'){
-    const p = findProduct(m(/^\/api\/products\/(\d+)\/restock$/)[1]);
-    if(!p) throw new Error('Product not found.');
-    p.stock_qty += Number(body.qty || 0);
-    saveProducts();
-    return p;
-  }
-  if(m(/^\/api\/products\/(\d+)$/) && method === 'PUT'){
-    const p = findProduct(m(/^\/api\/products\/(\d+)$/)[1]);
-    if(!p) throw new Error('Product not found.');
-    Object.assign(p, body);
-    saveProducts();
-    return p;
-  }
-  if(m(/^\/api\/products\/(\d+)$/) && method === 'DELETE'){
-    const idx = findProductIndex(m(/^\/api\/products\/(\d+)$/)[1]);
-    if(idx === -1) throw new Error('Product not found.');
-    MOCK.products.splice(idx, 1);
-    saveProducts();
-    return null;
-  }
-
-  // ---- Bills ----
-  if(m(/^\/api\/bills\/(\d+)\/items$/) && method === 'GET')
-    return MOCK.billItems[m(/^\/api\/bills\/(\d+)\/items$/)[1]] || [];
-  if(m(/^\/api\/bills\/(\d+)\/payments$/) && method === 'POST'){
-    const id = Number(m(/^\/api\/bills\/(\d+)\/payments$/)[1]);
-    const bill = MOCK.bills.find(b => b.id === id);
-    if(!bill) throw new Error('Bill not found.');
-    const amt = Number(body.amount || 0);
-    if(amt > bill.balance_due) throw new Error('Amount is more than the balance due.');
-    bill.paid_amount += amt;
-    bill.balance_due = Math.round((bill.balance_due - amt) * 100) / 100;
-    return bill;
-  }
-  if(route === '/api/bills' && method === 'GET'){
-    const cid = q.get('customer_id');
-    return MOCK.bills
-      .filter(b => inRange(b.bill_date, start, end))
-      .filter(b => !cid || b.customer_id === Number(cid))
-      .sort((a,b) => b.id - a.id);
-  }
-  if(route === '/api/bills' && method === 'POST'){
-    const items = body.items || [];
-    const total = items.reduce((s,i) => s + i.quantity * i.price_each, 0);
-    const paid = Number(body.paid_amount || 0);
-    const cust = MOCK.customers.find(c => c.id === body.customer_id);
-    const bill = {
-      id: MOCK.nextBillId++,
-      customer_id: body.customer_id || null,
-      customer_name: cust ? cust.name : null,
-      bill_date: new Date().toISOString().slice(0,19).replace('T',' '),
-      total_amount: total, paid_amount: paid,
-      balance_due: Math.round((total - paid) * 100) / 100,
-      payment_mode: body.payment_mode,
-    };
-    MOCK.bills.push(bill);
-    MOCK.billItems[bill.id] = items.map(i => {
-      const p = findProduct(i.product_id);
-      if(p) p.stock_qty -= i.quantity;
-      return {product_name: p ? p.name : 'Item', quantity: i.quantity, price_each: i.price_each};
-    });
-    return bill;
-  }
-
-  // ---- Sales summary ----
-  if(route === '/api/sales/summary'){
-    const rows = MOCK.bills.filter(b => inRange(b.bill_date, start, end));
-    return {
-      revenue: rows.reduce((s,b) => s + b.total_amount, 0),
-      collected: rows.reduce((s,b) => s + b.paid_amount, 0),
-      outstanding: rows.reduce((s,b) => s + b.balance_due, 0),
-      bill_count: rows.length,
-    };
-  }
-
-  // ---- Dashboard ----
-  if(route === '/api/dashboard/profit-loss'){
-    const rows = MOCK.bills.filter(b => inRange(b.bill_date, start, end));
-    let revenue = 0, cost = 0;
-    rows.forEach(b => (MOCK.billItems[b.id] || []).forEach(i => {
-      const p = MOCK.products.find(x => x.name === i.product_name);
-      revenue += i.quantity * i.price_each;
-      cost += i.quantity * (p ? p.cost_price : 0);
-    }));
-    return {revenue, cost, profit: revenue - cost};
-  }
-  if(route === '/api/dashboard/product-ranking'){
-    const rows = MOCK.bills.filter(b => inRange(b.bill_date, start, end));
-    const sold = {};
-    rows.forEach(b => (MOCK.billItems[b.id] || []).forEach(i => {
-      sold[i.product_name] = sold[i.product_name] || {units:0, revenue:0};
-      sold[i.product_name].units += i.quantity;
-      sold[i.product_name].revenue += i.quantity * i.price_each;
-    }));
-    return MOCK.products
-      .map(p => ({
-        id: p.id, name: p.name,
-        units_sold: sold[p.name] ? sold[p.name].units : 0,
-        revenue: sold[p.name] ? sold[p.name].revenue : 0,
-      }))
-      .sort((a,b) => b.units_sold - a.units_sold);
-  }
-
-  // ---- AI (placeholder responses only — no AI logic here) ----
-  if(route === '/api/ai/coach'){
-    await mockDelay(500);
-    return {text: mockCoachReply(body.message || '')};
-  }
-  if(route.startsWith('/api/ai/')){
-    await mockDelay(500);
-    const key = route.replace('/api/ai/', '');
-    return {insight: MOCK_AI[key] || 'No insight available for this request yet.'};
-  }
-
-  throw new Error('Unknown endpoint: ' + path);
-}
-
-// ---------- Navigation ----------
-function goTo(page){
-  document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.page===page));
-  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id===`page-${page}`));
-  const titles = {home:['Home','Overview of your shop'], billing:['Billing','Create bills, register customers, record payments'],
-    sales:['Sales','Filter sales by period and customer'], dashboard:['Dashboard','Profit & loss and AI insights'],
-    stock:['Stock','Manage inventory'], coach:['AI Coach','Ask about your business, powered by Groq']};
-  document.getElementById('pageTitle').textContent = titles[page][0];
-  document.getElementById('pageSubtitle').textContent = titles[page][1];
-  if(page==='billing') loadBillingTab();
-  if(page==='sales') loadSales();
-  if(page==='dashboard') loadDashboard();
-  if(page==='stock') loadStock();
-  if(page==='home') loadHome();
-}
-document.querySelectorAll('.navbtn').forEach(b => b.addEventListener('click', () => goTo(b.dataset.page)));
-
-document.querySelectorAll('.tabs').forEach(tabs => {
-  tabs.addEventListener('click', e => {
-    const btn = e.target.closest('.tab'); if(!btn) return;
-    const section = tabs.parentElement;
-    tabs.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t===btn));
-    section.querySelectorAll('.tabpane').forEach(p => p.style.display = (p.id === `tab-${btn.dataset.tab}` ? 'block':'none'));
-  });
-});
-
-// ---------- Home ----------
-async function loadHome(){
-  try{
-    const s = await api('/api/summary');
-    document.getElementById('homeStats').innerHTML = `
-      ${statCard('Registered customers', s.total_customers)}
-      ${statCard('Products in catalog', s.total_products)}
-      ${statCard('Total bills created', s.total_bills)}
-      ${statCard('Total outstanding balance', inr(s.total_due))}
-    `;
-    setApiStatus(true);
-  }catch(e){ setApiStatus(false); }
-}
-function statCard(label, value, delta){
-  return `<div class="card stat"><div class="label">${label}</div><div class="value">${value}</div>${delta?`<div class="delta ${delta.startsWith('-')?'neg':'pos'}">${delta}</div>`:''}</div>`;
-}
-function setApiStatus(ok){
-  document.getElementById('apiStatus').textContent = ok ? '● API connected' : '● API unreachable — check backend';
-  document.getElementById('apiStatus').style.color = ok ? 'var(--brand-text)' : 'var(--neg)';
-}
-
-// ---------- Billing ----------
-let cart = [];
-let customersCache = [], productsCache = [];
-
-async function loadBillingTab(){
-  const [customers, products] = await Promise.all([api('/api/customers'), api('/api/products')]);
-  customersCache = customers; productsCache = products;
-
-  const custSel = document.getElementById('billCustomer');
-  custSel.innerHTML = '<option value="">Walk-in (no record)</option>' +
-    customers.map(c => `<option value="${c.id}">${c.name} (${c.mobile})</option>`).join('');
-
-  const prodSel = document.getElementById('billProduct');
-  prodSel.innerHTML = products.map(p => `<option value="${p.id}">${p.name} (${inr(p.sell_price)}, stock ${p.stock_qty})</option>`).join('');
-
-  renderCustTable(customers);
-  renderOutstanding();
-  renderUnpaidBills();
-}
-
-function renderCustTable(customers){
-  document.getElementById('custTable').querySelector('tbody').innerHTML =
-    customers.map(c => `<tr><td>${c.id}</td><td>${c.name}</td><td>${c.mobile}</td></tr>`).join('') ||
-    '<tr><td colspan="3" class="empty">No customers registered yet.</td></tr>';
-}
-
-async function registerCustomer(){
-  const name = document.getElementById('custName').value.trim();
-  const mobile = document.getElementById('custMobile').value.trim();
-  const statusEl = document.getElementById('custStatus');
-  if(!name || !mobile){ statusEl.innerHTML = '<div class="callout error">Please enter both name and mobile number.</div>'; return; }
-  try{
-    await api('/api/customers', {method:'POST', body: JSON.stringify({name, mobile})});
-    statusEl.innerHTML = `<div class="callout success">Registered '${name}'.</div>`;
-    document.getElementById('custName').value=''; document.getElementById('custMobile').value='';
-    loadBillingTab();
-  }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
-}
-
-function addToCart(){
-  const pid = Number(document.getElementById('billProduct').value);
-  const qty = Number(document.getElementById('billQty').value);
-  const prod = productsCache.find(p => p.id===pid);
-  const errEl = document.getElementById('cartError');
-  if(!prod){ return; }
-  if(qty > prod.stock_qty){ errEl.innerHTML = `<div class="callout error">Only ${prod.stock_qty} units of ${prod.name} in stock.</div>`; return; }
-  errEl.innerHTML = '';
-  cart.push({product_id: prod.id, name: prod.name, quantity: qty, price_each: prod.sell_price, cost_each: prod.cost_price});
-  renderCart();
-}
-
-function renderCart(){
-  const wrap = document.getElementById('cartItems');
-  if(cart.length===0){ wrap.innerHTML = '<p class="empty">No items yet — add products on the left.</p>'; document.getElementById('cartTotal').innerHTML=''; return; }
-  let total = 0;
-  wrap.innerHTML = cart.map((item, idx) => {
-    const lineTotal = item.quantity * item.price_each; total += lineTotal;
-    return `<div class="cart-row"><div class="name">${item.name}</div><div class="qty">×${item.quantity}</div><div class="price">${inr(item.price_each)}</div><div class="total">${inr(lineTotal)}</div><button onclick="removeFromCart(${idx})">Remove</button></div>`;
-  }).join('');
-  document.getElementById('cartTotal').innerHTML = `<h3 style="margin-top:14px;border:none;padding:0">Total: ${inr(total)}</h3>`;
-  document.getElementById('paidAmount').value = total.toFixed(2);
-  document.getElementById('paidAmount').max = total;
-  updateBillStatus();
-}
-function removeFromCart(idx){ cart.splice(idx,1); renderCart(); }
-
-document.getElementById('paidAmount').addEventListener('input', updateBillStatus);
-function cartTotal(){ return cart.reduce((s,i)=>s + i.quantity*i.price_each, 0); }
-function updateBillStatus(){
-  const total = cartTotal();
-  const paid = Number(document.getElementById('paidAmount').value || 0);
-  const balance = Math.round((total - paid)*100)/100;
-  const statusEl = document.getElementById('billStatus');
-  const custId = document.getElementById('billCustomer').value;
-  let html = balance > 0 ? `<div class="callout error">Balance due after this payment: ${inr(balance)}</div>` : `<div class="callout success">Fully paid.</div>`;
-  let disable = false;
-  if(!custId && balance > 0){
-    html += `<div class="callout error">A balance due can't be tracked for a walk-in customer. Register the customer first, or collect full payment.</div>`;
-    disable = true;
-  }
-  statusEl.innerHTML = cart.length ? html : '';
-  document.getElementById('finalizeBtn').disabled = disable || cart.length===0;
-}
-document.getElementById('billCustomer').addEventListener('change', updateBillStatus);
-
-async function finalizeBill(){
-  const customer_id = document.getElementById('billCustomer').value || null;
-  const paid_amount = Number(document.getElementById('paidAmount').value);
-  const payment_mode = document.getElementById('payMode').value;
-  try{
-    const res = await api('/api/bills', {method:'POST', body: JSON.stringify({
-      customer_id: customer_id ? Number(customer_id) : null,
-      items: cart.map(({product_id, quantity, price_each, cost_each}) => ({product_id, quantity, price_each, cost_each})),
-      paid_amount, payment_mode,
-    })});
-    document.getElementById('billStatus').innerHTML = `<div class="callout success">Bill #${res.id} created successfully!</div>`;
-    cart = []; renderCart();
-    loadBillingTab();
-    renderTrends();
-  }catch(e){ document.getElementById('billStatus').innerHTML = `<div class="callout error">${e.message}</div>`; }
-}
-
-async function renderOutstanding(){
-  const rows = await api('/api/customers/outstanding');
-  document.getElementById('outstandingTable').querySelector('tbody').innerHTML = rows.map(o =>
-    `<tr><td>${o.name}</td><td>${o.mobile}</td><td>${o.bill_count}</td><td>${inr(o.total_due)}</td></tr>`
-  ).join('') || '<tr><td colspan="4" class="empty">No unpaid balances right now.</td></tr>';
-}
-
-async function renderUnpaidBills(){
-  const bills = (await api('/api/bills')).filter(b => b.balance_due > 0);
-  const wrap = document.getElementById('unpaidBillsWrap');
-  if(bills.length===0){ wrap.innerHTML = "<p class=\"empty\">No outstanding bills</p>"; return; }
-  wrap.innerHTML = `
-    <div class="field"><label>Select bill</label>
-      <select id="payBillSelect">${bills.map(b => `<option value="${b.id}" data-due="${b.balance_due}">Bill #${b.id} — ${b.customer_name||'Walk-in'} — due ${inr(b.balance_due)}</option>`).join('')}</select>
-    </div>
-    <div class="row">
-      <div class="field"><label>Amount received</label><input id="payAmount" type="number" min="0.01" step="1"></div>
-      <div class="field"><label>Mode</label><select id="payModeSelect"><option>Cash</option><option>Card</option></select></div>
-    </div>
-    <div id="payStatus"></div>
-    <button class="btn" onclick="recordPayment()">Record payment</button>
-  `;
-  const sel = document.getElementById('payBillSelect');
-  const syncAmount = () => { document.getElementById('payAmount').value = sel.selectedOptions[0].dataset.due; document.getElementById('payAmount').max = sel.selectedOptions[0].dataset.due; };
-  sel.addEventListener('change', syncAmount); syncAmount();
-}
-
-async function recordPayment(){
-  const billId = document.getElementById('payBillSelect').value;
-  const amount = Number(document.getElementById('payAmount').value);
-  const mode = document.getElementById('payModeSelect').value;
-  const statusEl = document.getElementById('payStatus');
-  try{
-    await api(`/api/bills/${billId}/payments`, {method:'POST', body: JSON.stringify({amount, mode})});
-    statusEl.innerHTML = `<div class="callout success">Recorded ${inr(amount)} against Bill #${billId}.</div>`;
-    renderUnpaidBills(); renderOutstanding();
-    renderTrends();
-  }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
-}
-
-// ---------- Sales ----------
-function periodToRange(periodSelId, startId, endId, rangeWrapId){
-  const period = document.getElementById(periodSelId).value;
-  const today = new Date(); const iso = d => d.toISOString().slice(0,10);
-  document.getElementById(rangeWrapId).style.display = period==='Custom Range' ? 'flex' : 'none';
-  if(period==='Custom Range') return {start: document.getElementById(startId).value || iso(today), end: document.getElementById(endId).value || iso(today)};
-  let start = new Date(today);
-  if(period==='Today'){ /* start=today */ }
-  else if(period==='This Week'){ start.setDate(today.getDate() - today.getDay() + 1); }
-  else if(period==='This Month'){ start = new Date(today.getFullYear(), today.getMonth(), 1); }
-  else if(period==='All Time'){ start = new Date(2000,0,1); }
-  return {start: iso(start), end: iso(today)};
-}
-function onSalesPeriodChange(){ periodToRange('salesPeriod','salesStart','salesEnd','salesCustomRange'); }
-function onDashPeriodChange(){ periodToRange('dashPeriod','dashStart','dashEnd','dashCustomRange'); }
-
-async function loadSales(){
-  const customers = customersCache.length ? customersCache : await api('/api/customers');
-  customersCache = customers;
-  const custSel = document.getElementById('salesCustomer');
-  if(custSel.options.length <= 1){
-    custSel.innerHTML = '<option value="">All customers</option>' + customers.map(c => `<option value="${c.id}">${c.name} (${c.mobile})</option>`).join('');
-  }
-  const {start, end} = periodToRange('salesPeriod','salesStart','salesEnd','salesCustomRange');
-  const customerId = document.getElementById('salesCustomer').value;
-
-  const [summary, bills] = await Promise.all([
-    api(`/api/sales/summary?start_date=${start}&end_date=${end}`),
-    api(`/api/bills?start_date=${start}&end_date=${end}` + (customerId ? `&customer_id=${customerId}` : '')),
-  ]);
-
-  document.getElementById('salesStats').innerHTML = `
-    ${statCard('Total revenue', inr(summary.revenue))}
-    ${statCard('Collected', inr(summary.collected))}
-    ${statCard('Outstanding', inr(summary.outstanding))}
-    ${statCard('Bills', summary.bill_count)}
-  `;
-  renderTrends();
-
-  const listEl = document.getElementById('billsList');
-  if(bills.length===0){ listEl.innerHTML = '<p class="empty">No sales in this period.</p>'; return; }
-  listEl.innerHTML = (await Promise.all(bills.map(async b => {
-    const items = await api(`/api/bills/${b.id}/items`);
-    const rows = items.map(i => `<tr><td>${i.product_name}</td><td>${i.quantity}</td><td>${inr(i.price_each)}</td><td>${inr(i.quantity*i.price_each)}</td></tr>`).join('');
-    return `<div class="card" style="margin-bottom:12px">
-      <h3 style="font-size:14px">Bill #${b.id} — ${b.customer_name||'Walk-in'} — ${inr(b.total_amount)} — ${b.bill_date}</h3>
-      <div class="table-wrap"><table><thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Line total</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p style="margin:10px 0 0;font-size:13px">Paid: ${inr(b.paid_amount)} | Balance due: ${inr(b.balance_due)} | Mode: ${b.payment_mode||'—'}</p>
-    </div>`;
-  }))).join('');
-}
-
-// ---------- Monthly trend analytics ----------
-let trendRange = '12';
-
-function setTrendRange(range){
-  trendRange = range;
-  try{ localStorage.setItem(STORE_KEYS.range, range); }catch(e){}
-  document.querySelectorAll('#trendRange button').forEach(b =>
-    b.classList.toggle('active', b.dataset.range === range));
-  renderTrends();
-}
-
-function monthlyTrends(range){
-  if(!MOCK.bills.length) return [];
-  const buckets = {};
-  MOCK.bills.forEach(b => {
-    const key = String(b.bill_date).slice(0,7);
-    buckets[key] = buckets[key] || {revenue:0, collected:0, outstanding:0, bills:0};
-    buckets[key].revenue += b.total_amount;
-    buckets[key].collected += b.paid_amount;
-    buckets[key].outstanding += b.balance_due;
-    buckets[key].bills++;
-  });
-
-  const keys = Object.keys(buckets).sort();
-  const now = new Date();
-  let months = [];
-  if(range === 'all'){
-    const first = keys[0].split('-');
-    let cursor = new Date(Number(first[0]), Number(first[1]) - 1, 1);
-    while(cursor <= now){
-      months.push(cursor.getFullYear() + '-' + String(cursor.getMonth() + 1).padStart(2,'0'));
-      cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-    }
-  }else{
-    const count = Number(range);
-    for(let back = count - 1; back >= 0; back--){
-      const d = new Date(now.getFullYear(), now.getMonth() - back, 1);
-      months.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2,'0'));
-    }
-  }
-
-  return months.map(key => {
-    const parts = key.split('-');
-    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
-    const bucket = buckets[key] || {revenue:0, collected:0, outstanding:0, bills:0};
-    return {
-      key,
-      label: d.toLocaleDateString('en-US', {month:'short'}),
-      full: d.toLocaleDateString('en-US', {month:'short', year:'numeric'}),
-      revenue: bucket.revenue,
-      collected: bucket.collected,
-      outstanding: bucket.outstanding,
-      bills: bucket.bills,
-    };
-  });
-}
-
-function lineChart(rows, valueKey, color){
-  const W = 600, H = 170, top = 10, bottom = 8;
-  const values = rows.map(r => r[valueKey]);
-  const max = Math.max.apply(null, values.concat([1])) * 1.15;
-  const n = rows.length;
-  const X = i => n === 1 ? W / 2 : (i * W) / (n - 1);
-  const Y = v => top + (1 - v / max) * (H - top - bottom);
-
-  const pts = rows.map((r, i) => [X(i), Y(r[valueKey])]);
-  let path = '';
-  pts.forEach((p, i) => {
-    if(i === 0){ path += 'M' + p[0].toFixed(1) + ' ' + p[1].toFixed(1); return; }
-    const prev = pts[i - 1];
-    const cx = (prev[0] + p[0]) / 2;
-    path += ' C' + cx.toFixed(1) + ' ' + prev[1].toFixed(1) + ',' + cx.toFixed(1) + ' ' + p[1].toFixed(1) + ',' + p[0].toFixed(1) + ' ' + p[1].toFixed(1);
-  });
-
-  const gridColor = cssVar('--border') || '#e6eaee';
-  let grid = '';
-  for(let g = 0; g <= 3; g++){
-    const gy = top + (g / 3) * (H - top - bottom);
-    grid += '<line x1="0" y1="' + gy.toFixed(1) + '" x2="' + W + '" y2="' + gy.toFixed(1) + '" stroke="' + gridColor + '" stroke-width="1" vector-effect="non-scaling-stroke"/>';
-  }
-
-  const svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Monthly trend chart">' +
-    grid +
-    '<path d="' + path + ' L ' + W + ' ' + H + ' L 0 ' + H + ' Z" fill="' + color + '" fill-opacity="0.12"/>' +
-    '<path d="' + path + '" fill="none" stroke="' + color + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>' +
-    '</svg>';
-
-  const cells = rows.map((r, i) =>
-    '<div class="chart-cell">' +
-      '<span class="chart-dot" style="background:' + color + '; top:' + ((pts[i][1] / H) * 100).toFixed(2) + '%"></span>' +
-      '<span class="chart-tip"><span class="ct-m">' + r.full + '</span>' +
-      '<span class="ct-v" style="color:' + color + '">' + money(r[valueKey]) + '</span></span>' +
-    '</div>').join('');
-
-  const step = n > 1 ? 100 / (n - 1) : 50;
-  const labels = rows.map((r, i) =>
-    '<span style="left:' + (n === 1 ? 50 : i * step).toFixed(2) + '%">' + r.label + '</span>').join('');
-
-  return '<div class="chart-wrap"><div class="chart-plot">' + svg +
-    '<div class="chart-hover">' + cells + '</div></div>' +
-    '<div class="chart-xlabels">' + labels + '</div></div>';
-}
-
-function trendCard(title, subtitle, valueKey, rows, color, invertDelta){
-  const values = rows.map(r => r[valueKey]);
-  const total = values.reduce((s, v) => s + v, 0);
-  const last = values[values.length - 1] || 0;
-  const prev = values[values.length - 2] || 0;
-  let delta = '';
-  if(prev > 0){
-    const pct = ((last - prev) / prev) * 100;
-    const up = pct >= 0;
-    const good = invertDelta ? !up : up;
-    delta = '<div class="tc-delta" style="color:' + (good ? 'var(--pos)' : 'var(--neg)') + '">' +
-      (up ? '▲ ' : '▼ ') + Math.abs(pct).toFixed(1) + '% vs last month</div>';
-  }
-  return '<div class="trend-card"><div class="tc-head">' +
-    '<div><div class="tc-title"><i style="background:' + color + '"></i>' + title + '</div>' +
-    '<div class="tc-sub">' + subtitle + '</div></div>' +
-    '<div><div class="tc-value" style="color:' + color + '">' + money(total) + '</div>' + delta + '</div>' +
-    '</div>' + lineChart(rows, valueKey, color) + '</div>';
-}
-
-function renderTrends(){
-  const chartsEl = document.getElementById('trendCharts');
-  const summaryEl = document.getElementById('trendSummary');
-  if(!chartsEl || !summaryEl) return;
-
-  const rows = monthlyTrends(trendRange);
-  if(!rows.length){
-    summaryEl.innerHTML = '';
-    chartsEl.innerHTML = '<p class="empty">No billing history yet — trends appear once you create bills.</p>';
-    return;
-  }
-
-  const sum = key => rows.reduce((s, r) => s + r[key], 0);
-  const revenue = sum('revenue'), collected = sum('collected'), outstanding = sum('outstanding');
-  const withData = rows.filter(r => r.bills > 0).length || 1;
-  const rate = revenue > 0 ? (collected / revenue) * 100 : 0;
-
-  summaryEl.innerHTML =
-    statCard('Total revenue', money(revenue)) +
-    statCard('Total collected', money(collected) + ' · ' + rate.toFixed(0) + '%') +
-    statCard('Unpaid balance', money(outstanding)) +
-    statCard('Avg / month', money(revenue / withData));
-
-  const brand = cssVar('--brand') || '#0f8a6b';
-  const info = cssVar('--info') || '#2f7bbf';
-  const neg = cssVar('--neg') || '#d1495b';
-
-  chartsEl.innerHTML =
-    trendCard('Total Revenue', 'Billed per month', 'revenue', rows, brand) +
-    trendCard('Amount Collected', 'Payments received', 'collected', rows, info) +
-    trendCard('Outstanding Balance', 'Unpaid bills', 'outstanding', rows, neg, true);
-}
-
-// ---------- Dashboard ----------
-async function loadDashboard(){
-  const {start, end} = periodToRange('dashPeriod','dashStart','dashEnd','dashCustomRange');
-  const [pl, ranking] = await Promise.all([
-    api(`/api/dashboard/profit-loss?start_date=${start}&end_date=${end}`),
-    api(`/api/dashboard/product-ranking?start_date=${start}&end_date=${end}`),
-  ]);
-  document.getElementById('dashStats').innerHTML = `
-    ${statCard('Revenue', inr(pl.revenue))}
-    ${statCard('Cost of goods sold', inr(pl.cost))}
-    ${statCard('Profit / loss', inr(pl.profit), pl.profit>=0?'Profit':'-Loss')}
-  `;
-  document.getElementById('dashCallout').innerHTML = pl.profit >= 0
-    ? `<div class="callout success">You're in profit by ${inr(pl.profit)} for this period.</div>`
-    : `<div class="callout error">You're at a loss of ${inr(Math.abs(pl.profit))} for this period.</div>`;
-
-  const top = ranking.filter(p => p.units_sold > 0).slice(0,5);
-  const slow = ranking.filter(p => p.units_sold === 0);
-  document.getElementById('topProducts').innerHTML = top.length ?
-    `<div class="table-wrap"><table><thead><tr><th>Product</th><th>Units sold</th><th>Revenue</th></tr></thead><tbody>${
-      top.map(p => `<tr><td>${p.name}</td><td>${p.units_sold}</td><td>${inr(p.revenue)}</td></tr>`).join('')
-    }</tbody></table></div>` : '<p class="empty">No sales in this period yet.</p>';
-  document.getElementById('slowProducts').innerHTML = slow.length ?
-    `<div class="table-wrap"><table><thead><tr><th>Product</th><th>Units sold</th></tr></thead><tbody>${
-      slow.map(p => `<tr><td>${p.name}</td><td>0</td></tr>`).join('')
-    }</tbody></table></div>` : '<p class="empty">Everything has sold at least once — nice!</p>';
-
-  window._dashRange = {start, end};
-}
-
-async function runSalesAI(){
-  const {start, end} = window._dashRange || periodToRange('dashPeriod','dashStart','dashEnd','dashCustomRange');
-  await runAI(`sales-insights?start_date=${start}&end_date=${end}`, 'salesAiOut', true);
-}
-
-// ---------- Stock ----------
-async function loadStock(){
-  const [products, lowStock] = await Promise.all([api('/api/products'), api('/api/products/low-stock')]);
-  productsCache = products;
-  const lowIds = new Set(lowStock.map(p => p.id));
-
-  document.getElementById('productList').innerHTML = products.length ? products.map(p => {
-    const imgHtml = p.image_data
-      ? `<img src="${p.image_data}" alt="${p.name}" class="product-img">`
-      : `<div class="avatar" style="background:${colorFor(p.name)}">${initials(p.name)}</div>`;
-    return `<div class="product-item">
-      ${imgHtml}
-      <div style="flex:1">
-        <div style="font-weight:600">${p.name}${lowIds.has(p.id) ? ' <span class="badge badge-red">LOW STOCK</span>' : ''}</div>
-        <div style="font-size:12.5px;color:var(--muted)">Stock: ${p.stock_qty} | Cost: ${inr(p.cost_price)} | Sell: ${inr(p.sell_price)} | Reorder level: ${p.reorder_level}</div>
-        <div style="font-size:12px;color:var(--faint)">Margin per unit: ${inr(p.sell_price - p.cost_price)}</div>
-      </div>
-      <div class="actions">
-        <button onclick="openEditProduct(${p.id})">Edit</button>
-        <button onclick="deleteProduct(${p.id})">Delete</button>
-      </div>
-    </div>`;
-  }).join('') : '<p class="empty">No products added yet. Use the "Add Item" tab.</p>';
-
-  document.getElementById('restockProduct').innerHTML = products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-
-  document.getElementById('lowStockCallout').innerHTML = lowStock.length
-    ? `<div class="callout error">Low stock items: ${lowStock.map(p => `${p.name} (${p.stock_qty})`).join(', ')}</div>`
-    : `<div class="callout success">No items are critically low right now.</div>`;
-}
-
-async function addProduct(){
-  const name = document.getElementById('prodName').value.trim();
-  const statusEl = document.getElementById('prodStatus');
-  if(!name){ statusEl.innerHTML = '<div class="callout error">Please enter a product name.</div>'; return; }
-
-  const previewImg = document.getElementById('prodImagePreviewImg');
-  const imageData = previewImg.src && previewImg.src.startsWith('data:') ? previewImg.src : null;
-
-  const payload = {
-    name,
-    cost_price: Number(document.getElementById('prodCost').value),
-    sell_price: Number(document.getElementById('prodSell').value),
-    stock_qty: Number(document.getElementById('prodStock').value),
-    reorder_level: Number(document.getElementById('prodReorder').value),
-    image_data: imageData,
-  };
-  try{
-    const res = await api('/api/products', {method:'POST', body: JSON.stringify(payload)});
-    statusEl.innerHTML = res.warning
-      ? `<div class="callout error">Added '${name}' (#${res.id}) — note: selling below cost.</div>`
-      : `<div class="callout success">Added '${name}' (#${res.id}) to the catalog.</div>`;
-    document.getElementById('prodName').value='';
-    document.getElementById('prodImage').value='';
-    document.getElementById('prodImagePreview').style.display='none';
-    document.getElementById('prodImagePreviewImg').src='';
-    loadStock();
-  }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
-}
-
-async function restock(){
-  const pid = document.getElementById('restockProduct').value;
-  const qty = Number(document.getElementById('restockQty').value);
-  const statusEl = document.getElementById('restockStatus');
-  try{
-    await api(`/api/products/${pid}/restock`, {method:'POST', body: JSON.stringify({qty})});
-    statusEl.innerHTML = `<div class="callout success">Added ${qty} units.</div>`;
-    loadStock();
-  }catch(e){ statusEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
-}
-
-// ---------- Image preview ----------
-function previewProductImage(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e){
-    const wrap = document.getElementById('prodImagePreview');
-    const img = document.getElementById('prodImagePreviewImg');
-    wrap.style.display = 'block';
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-function previewEditProductImage(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e){
-    const wrap = document.getElementById('editProdImagePreview');
-    const img = document.getElementById('editProdImagePreviewImg');
-    wrap.style.display = 'block';
-    img.src = e.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-// ---------- Edit product ----------
-function openEditProduct(id){
-  const p = findProduct(id);
-  if(!p) return;
-  document.getElementById('editProdId').value = p.id;
-  document.getElementById('editProdName').value = p.name;
-  document.getElementById('editProdCost').value = p.cost_price;
-  document.getElementById('editProdSell').value = p.sell_price;
-  document.getElementById('editProdStock').value = p.stock_qty;
-  document.getElementById('editProdReorder').value = p.reorder_level;
-  const previewWrap = document.getElementById('editProdImagePreview');
-  const previewImg = document.getElementById('editProdImagePreviewImg');
-  document.getElementById('editProdImage').value = '';
-  if(p.image_data){
-    previewWrap.style.display = 'block';
-    previewImg.src = p.image_data;
-  }else{
-    previewWrap.style.display = 'none';
-    previewImg.src = '';
-  }
-  document.getElementById('editProdStatus').innerHTML = '';
-  document.getElementById('editModal').classList.add('open');
-}
-
-function closeEditModal(){
-  document.getElementById('editModal').classList.remove('open');
-}
-
-async function saveEditProduct(){
-  const id = Number(document.getElementById('editProdId').value);
-  const name = document.getElementById('editProdName').value.trim();
-  const statusEl = document.getElementById('editProdStatus');
-  if(!name){ statusEl.innerHTML = '<div class="callout error">Product name cannot be empty.</div>'; return; }
-
-  const previewImg = document.getElementById('editProdImagePreviewImg');
-  const imageData = previewImg.src && previewImg.src.startsWith('data:') ? previewImg.src : null;
-
-  try{
-    await api('/api/products/' + id, {method: 'PUT', body: JSON.stringify({
-      name,
-      cost_price: Number(document.getElementById('editProdCost').value),
-      sell_price: Number(document.getElementById('editProdSell').value),
-      stock_qty: Number(document.getElementById('editProdStock').value),
-      reorder_level: Number(document.getElementById('editProdReorder').value),
-      image_data: imageData,
-    })});
-    closeEditModal();
-    loadStock();
-  }catch(e){
-    statusEl.innerHTML = `<div class="callout error">${e.message}</div>`;
-  }
-}
-
-// ---------- Delete product ----------
-async function deleteProduct(id){
-  const p = findProduct(id);
-  if(!p) return;
-  if(!confirm('Delete "' + p.name + '" permanently? This cannot be undone.')) return;
-  try{
-    await api('/api/products/' + id, {method: 'DELETE'});
-    loadStock();
-  }catch(e){
-    alert(e.message);
-  }
-}
-
-// ---------- AI (shared) ----------
-async function runAI(endpoint, outId, isQuery=false){
-  const outEl = document.getElementById(outId);
-  outEl.innerHTML = '<p><span class="spinner"></span>Asking Groq…</p>';
-  try{
-    const res = await api(`/api/ai/${endpoint}`, {method:'POST', body: isQuery ? undefined : '{}'});
-    outEl.innerHTML = `<div class="callout info" style="white-space:pre-wrap">${res.insight}</div>`;
-  }catch(e){ outEl.innerHTML = `<div class="callout error">${e.message}</div>`; }
-}
-
-// ---------- AI Coach chat ----------
-let chatHistory = [];
-async function sendChat(){
-  const input = document.getElementById('chatInput');
-  const msg = input.value.trim();
-  if(!msg) return;
-  input.value='';
-  appendBubble(msg, 'user');
-  chatHistory.push({role:'user', content: msg});
-  const log = document.getElementById('chatLog');
-  const thinkingEl = document.createElement('div');
-  thinkingEl.className = 'bubble ai'; thinkingEl.innerHTML = '<span class="spinner"></span>Thinking…';
-  log.appendChild(thinkingEl); log.scrollTop = log.scrollHeight;
-  try{
-    const res = await api('/api/ai/coach', {method:'POST', body: JSON.stringify({message: msg, history: chatHistory})});
-    thinkingEl.textContent = res.text;
-    chatHistory.push({role:'assistant', content: res.text});
-  }catch(e){ thinkingEl.textContent = `! ${e.message}`; }
-  log.scrollTop = log.scrollHeight;
-}
-function appendBubble(text, who){
-  const log = document.getElementById('chatLog');
-  const el = document.createElement('div'); el.className = `bubble ${who}`; el.textContent = text;
-  log.appendChild(el); log.scrollTop = log.scrollHeight;
-}
-function askSuggested(q){ document.getElementById('chatInput').value = q; sendChat(); }
-
-// ---------- Init ----------
-initPreferences();
-loadHome();
-</script>
+    </script>
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+    <style>
+            .material-symbols-outlined {
+                font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            }
+            .glass-card {
+                background: rgba(255, 255, 255, 0.75);
+                backdrop-filter: blur(20px);
+                border: 1px solid rgba(255, 255, 255, 0.3);
+            }
+            .reveal {
+                opacity: 0;
+                transform: translateY(20px);
+                transition: all 0.6s ease-out;
+            }
+            .reveal.active {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        </style>
+    <script id="tailwind-config">
+          tailwind.config = {
+            darkMode: "class",
+            theme: {
+              extend: {
+                "colors": {
+                        "outline": "#6e7a6f",
+                        "on-surface-variant": "#3e4a40",
+                        "surface-container": "#eaefe7",
+                        "on-secondary-container": "#666270",
+                        "surface-container-low": "#f0f5ed",
+                        "on-primary-container": "#f6fff4",
+                        "surface-container-lowest": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-background": "#171d18",
+                        "on-tertiary-fixed-variant": "#3e4944",
+                        "surface-tint": "#006d3b",
+                        "secondary-fixed-dim": "#c9c4d4",
+                        "on-tertiary-fixed": "#131e19",
+                        "background": "#FFFDF8",
+                        "error": "#ba1a1a",
+                        "on-error-container": "#93000a",
+                        "on-tertiary-container": "#f5fff8",
+                        "secondary": "#605c6a",
+                        "surface-container-high": "#e4eae2",
+                        "inverse-surface": "#2c322d",
+                        "on-primary-fixed": "#00210e",
+                        "primary-fixed-dim": "#73db96",
+                        "tertiary": "#535f59",
+                        "on-surface": "#171d18",
+                        "secondary-fixed": "#e6e0f1",
+                        "on-error": "#ffffff",
+                        "primary-container": "#0a864b",
+                        "inverse-primary": "#73db96",
+                        "inverse-on-surface": "#edf2ea",
+                        "surface-container-highest": "#dee4dc",
+                        "primary": "#2E9B5D",
+                        "surface-bright": "#f5fbf3",
+                        "surface-variant": "#dee4dc",
+                        "tertiary-fixed": "#d9e6de",
+                        "surface": "#f5fbf3",
+                        "on-secondary-fixed-variant": "#484552",
+                        "primary-fixed": "#8ff8b1",
+                        "on-secondary": "#ffffff",
+                        "secondary-container": "#e6e0f1",
+                        "surface-dim": "#d6dcd4",
+                        "outline-variant": "#bdcabd",
+                        "on-primary-fixed-variant": "#00522b",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#6b7771",
+                        "on-secondary-fixed": "#1c1a26",
+                        "tertiary-fixed-dim": "#bdcac2",
+                        "on-tertiary": "#ffffff",
+                        "lavender": "#F4EEFF"
+                },
+                "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "20px",
+                        "full": "9999px"
+                },
+                "spacing": {
+                        "2xl": "48px",
+                        "sm": "8px",
+                        "margin-mobile": "16px",
+                        "md": "16px",
+                        "lg": "24px",
+                        "container-max": "1280px",
+                        "gutter": "24px",
+                        "xl": "32px",
+                        "unit": "4px",
+                        "xs": "4px",
+                        "3xl": "64px"
+                },
+                "fontFamily": {
+                        "label-xs": ["Plus Jakarta Sans"],
+                        "display-lg": ["Plus Jakarta Sans"],
+                        "body-md": ["Plus Jakarta Sans"],
+                        "display-lg-mobile": ["Plus Jakarta Sans"],
+                        "body-lg": ["Plus Jakarta Sans"],
+                        "label-sm": ["Plus Jakarta Sans"],
+                        "headline-md": ["Plus Jakarta Sans"]
+                },
+                "fontSize": {
+                        "label-xs": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.03em", "fontWeight": "600"}],
+                        "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                        "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                        "display-lg-mobile": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                        "label-sm": ["14px", {"lineHeight": "1.4", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                        "headline-md": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+                }
+        },
+            },
+          }
+        </script>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary/20">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 dark:bg-surface/80 backdrop-blur-xl border-b border-outline-variant/20 shadow-sm transition-all duration-200 ease-in-out">
+<div class="flex justify-between items-center h-20 px-lg max-w-container-max mx-auto">
+<div class="font-display-lg text-headline-md md:text-display-lg font-bold text-primary">Expensa</div>
+<div class="hidden md:flex gap-xl">
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200 font-label-sm text-label-sm" href="#features">Features</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200 font-label-sm text-label-sm" href="#pricing">Pricing</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200 font-label-sm text-label-sm" href="#faq">Documentation</a>
+</div>
+<div class="flex items-center gap-md">
+<button onclick="window.location.href='/app'" class="hidden md:block px-lg py-sm font-label-sm text-primary hover:scale-105 transition-transform duration-200">Login</button>
+<button onclick="window.location.href='/app'" class="bg-primary text-on-primary px-lg py-sm rounded-xl font-label-sm hover:scale-105 transition-transform duration-200 shadow-md">Launch App</button>
+</div>
+</div>
+</nav>
+<main class="pt-20 overflow-x-hidden">
+<!-- Hero Section -->
+<section class="relative min-h-[921px] flex items-center pt-xl">
+<div class="max-w-container-max mx-auto px-lg grid lg:grid-cols-2 gap-2xl items-center">
+<div class="reveal active">
+<div class="inline-flex items-center gap-xs bg-primary/10 text-primary px-md py-xs rounded-full mb-lg">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span class="font-label-xs text-label-xs">v2.0 Now with AI Insights</span>
+</div>
+<h1 class="font-display-lg text-display-lg-mobile md:text-display-lg mb-md text-on-surface leading-tight">
+                        Run Your Entire Business From <span class="text-primary">One Smart Dashboard</span>
+</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-xl max-w-lg">
+                        Automate invoicing, manage real-time inventory, and get actionable AI-driven insights to scale your business effortlessly.
+                    </p>
+<div class="flex flex-wrap gap-md">
+<button onclick="window.location.href='/app'" class="bg-primary text-on-primary px-3xl py-md rounded-xl font-label-sm text-lg hover:scale-105 transition-all shadow-xl shadow-primary/20">Launch App</button>
+<button class="flex items-center gap-xs px-3xl py-md rounded-xl font-label-sm text-lg border border-outline-variant hover:bg-surface-container transition-all">
+<span class="material-symbols-outlined">play_circle</span> Watch Demo
+                        </button>
+</div>
+</div>
+<div class="relative reveal active delay-200">
+<div class="relative rounded-xl overflow-hidden shadow-2xl border border-white/40">
+<img class="w-full" data-alt="A ultra-high-definition dashboard interface showing beautiful mint green and white data visualizations including bar charts, a large revenue counter, and a list of recent transactions. The UI is clean, minimalist, and uses soft drop shadows to create depth on a light cream background with glassmorphism sidebar effects." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLY4RQGme37Kgow48hp0cFsEGyI6bJl1WFDULSWNNuPx45QWLQ1nSGPyelkZ3ABlz03mpjmxp0Z6YBssMghaqt2VkXJsv6ctYaAtnu6cdDh7qsaff03skozPpBG4j9m_dSZ961aH9jKWIfw8iEy_HuffdlPd4yU8Wp9wXQglunOWq8JO77lhcVq0rHfSQgVK-NggeVtJ7edKWay4i_3dANaY5HIgEVD6lutiy7BUA5yNu8OHNrvInxHQOwgVW3ejYUyuWUjFgLf8Bk"/>
+<!-- Floating UI Elements -->
+<div class="absolute top-10 -left-10 glass-card p-lg rounded-xl shadow-xl w-64 animate-bounce-slow">
+<div class="flex justify-between items-center mb-sm">
+<span class="text-on-surface-variant font-label-xs">Current Revenue</span>
+<span class="material-symbols-outlined text-primary">trending_up</span>
+</div>
+<div class="text-headline-md font-bold text-on-surface">$52,490.00</div>
+<div class="text-primary font-label-xs mt-xs">+12.5% this month</div>
+</div>
+<div class="absolute bottom-10 -right-10 glass-card p-lg rounded-xl shadow-xl w-72 animate-float">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-lavender flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">inventory_2</span>
+</div>
+<div>
+<div class="font-label-sm">Low Stock Alert</div>
+<div class="text-label-xs text-on-surface-variant">Organic Coffee Beans (3 left)</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Trust Section -->
+<section class="py-2xl bg-surface-container-low/30 reveal">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="flex flex-wrap justify-center gap-xl md:gap-3xl opacity-60">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<span class="font-label-sm uppercase tracking-widest">AI Powered</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">cloud_done</span>
+<span class="font-label-sm uppercase tracking-widest">Secure Cloud Storage</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">update</span>
+<span class="font-label-sm uppercase tracking-widest">Real-Time Inventory</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">store</span>
+<span class="font-label-sm uppercase tracking-widest">Built for SMBs</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Problem Section -->
+<section class="py-3xl">
+<div class="max-w-container-max mx-auto px-lg text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg mb-md">Running a business shouldn't mean <br/><span class="text-primary">juggling spreadsheets.</span></h2>
+</div>
+<div class="max-w-container-max mx-auto px-lg grid md:grid-cols-2 lg:grid-cols-4 gap-lg">
+<!-- Card 1 -->
+<div class="bg-white p-lg rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-outline-variant/10 reveal">
+<div class="w-12 h-12 bg-red-50 text-red-500 rounded-lg flex items-center justify-center mb-lg">
+<span class="material-symbols-outlined">receipt_long</span>
+</div>
+<h3 class="font-headline-md mb-sm">Manual Billing</h3>
+<p class="text-on-surface-variant font-body-md">Hours spent every week creating invoices by hand and chasing late payments.</p>
+</div>
+<!-- Card 2 -->
+<div class="bg-white p-lg rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-outline-variant/10 reveal">
+<div class="w-12 h-12 bg-orange-50 text-orange-500 rounded-lg flex items-center justify-center mb-lg">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<h3 class="font-headline-md mb-sm">Payment Tracking</h3>
+<p class="text-on-surface-variant font-body-md">Losing track of who owes what and missing out on critical cash flow opportunities.</p>
+</div>
+<!-- Card 3 -->
+<div class="bg-white p-lg rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-outline-variant/10 reveal">
+<div class="w-12 h-12 bg-blue-50 text-blue-500 rounded-lg flex items-center justify-center mb-lg">
+<span class="material-symbols-outlined">inventory</span>
+</div>
+<h3 class="font-headline-md mb-sm">Inventory Lag</h3>
+<p class="text-on-surface-variant font-body-md">Stock outs or overstocking because your inventory data is never up to date.</p>
+</div>
+<!-- Card 4 -->
+<div class="bg-white p-lg rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-outline-variant/10 reveal">
+<div class="w-12 h-12 bg-purple-50 text-purple-500 rounded-lg flex items-center justify-center mb-lg">
+<span class="material-symbols-outlined">insights</span>
+</div>
+<h3 class="font-headline-md mb-sm">No Insights</h3>
+<p class="text-on-surface-variant font-body-md">Flying blind without knowing which products are truly driving your profit margins.</p>
+</div>
+</div>
+</section>
+<!-- Features Section -->
+<section class="py-3xl bg-surface-container-lowest" id="features">
+<div class="max-w-container-max mx-auto px-lg">
+<!-- Feature 1 -->
+<div class="grid lg:grid-cols-2 gap-3xl items-center mb-3xl reveal">
+<div class="order-2 lg:order-1">
+<div class="w-14 h-14 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-xl">
+<span class="material-symbols-outlined text-3xl">electric_bolt</span>
+</div>
+<h2 class="font-display-lg text-headline-md md:text-headline-md mb-md">Smart Billing & Invoicing</h2>
+<p class="text-body-lg text-on-surface-variant mb-xl">Generate professional invoices in seconds. Our smart billing system automatically calculates taxes, applies discounts, and sends automated reminders to ensure you get paid faster.</p>
+<ul class="space-y-md">
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+                                Auto-recurring subscriptions
+                            </li>
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+                                Multi-currency support
+                            </li>
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+                                Professional templates
+                            </li>
+</ul>
+</div>
+<div class="order-1 lg:order-2">
+<img class="rounded-xl shadow-2xl" data-alt="A premium 3D render of a laptop screen showing a sleek invoice management interface. The design features soft mint green highlights, clean white cards for invoice statuses like 'Paid', 'Pending', and 'Overdue', and a smooth sidebar navigation. The scene is illuminated with warm, natural lighting in a modern home office setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBndnUGo4QyVzjlZ4MBQZEsylmyA6zA9zsfpxeeMXGt-8ONmVhlsmKAnP_2WCUndWi3iCmlSknxlfSs6W3bKtzSPK-z_72eCjkz7-51g0LzyGN7paRgC9Ti6Pv86MxP-yc5MHtmPLrubugyK-5BXZMB2gnDy2xul-yHTtfaE1I1sWQL3n3dtX5GgLA21tM8xTwnDNAIULbhiWv_BFpdjVivXyzMcNPqV8HcPQrNolK3TqyVoYDPojX6MTbXbJyZsQsQGKRQxOCWsEN"/>
+</div>
+</div>
+<!-- Feature 2 -->
+<div class="grid lg:grid-cols-2 gap-3xl items-center reveal">
+<div>
+<img class="rounded-xl shadow-2xl" data-alt="A detailed dashboard screen showing an advanced inventory management system. It displays stock levels across multiple locations using vibrant mint and lavender accent colors. Small product thumbnail images are visible in a clean table layout, accompanied by real-time status indicators like 'In Stock', 'Low Stock', and 'Reorder'. The aesthetic is highly professional and minimalist." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCDIFvlgyAZsCWQ1LNs4kpHB6x7rpCYRvAy2pBT-aPn4pz3B8EpDPc2V3G7hlCPpcbTQf1TD2XkyNlWn5oosmBGadeU0GkV6nuQbEt-KKTxqqLRThVU_cUJFPS73gb2wZqnXRWBpJfy2Mf65tDGKibL6VE-sLJybFMIs8L9FyeyETPBsVmozPBfw4s3ld2s6P8nw0JlBMBCPWmBoCR8bbSjKvcEJnh4aFOYGjWU2vsMQnIOERxGriY1q-QtY8YF3WfXqJTy-iWl27a9"/>
+</div>
+<div class="lg:pl-xl">
+<div class="w-14 h-14 bg-lavender text-secondary rounded-xl flex items-center justify-center mb-xl">
+<span class="material-symbols-outlined text-3xl">hub</span>
+</div>
+<h2 class="font-display-lg text-headline-md md:text-headline-md mb-md">Real-Time Inventory</h2>
+<p class="text-body-lg text-on-surface-variant mb-xl">Never lose a sale to a stock-out again. Sync your inventory across all sales channels in real-time and get predictive alerts before you run low.</p>
+<ul class="space-y-md">
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+                                Low-stock push notifications
+                            </li>
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+                                Batch and expiry tracking
+                            </li>
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+                                Multi-warehouse management
+                            </li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<!-- How It Works -->
+<section class="py-3xl bg-background">
+<div class="max-w-container-max mx-auto px-lg text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg">The 4-Step Flow to <span class="text-primary">Growth</span></h2>
+</div>
+<div class="max-w-container-max mx-auto px-lg">
+<div class="grid md:grid-cols-4 gap-lg relative">
+<!-- Step 1 -->
+<div class="text-center group reveal">
+<div class="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-lg group-hover:bg-primary group-hover:text-white transition-all duration-300">
+<span class="material-symbols-outlined text-3xl">add_box</span>
+</div>
+<h4 class="font-headline-md mb-xs">Add Products</h4>
+<p class="text-on-surface-variant text-label-sm">Import your catalog in minutes.</p>
+</div>
+<!-- Step 2 -->
+<div class="text-center group reveal delay-100">
+<div class="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-lg group-hover:bg-primary group-hover:text-white transition-all duration-300">
+<span class="material-symbols-outlined text-3xl">description</span>
+</div>
+<h4 class="font-headline-md mb-xs">Create Invoice</h4>
+<p class="text-on-surface-variant text-label-sm">Draft professional bills on the fly.</p>
+</div>
+<!-- Step 3 -->
+<div class="text-center group reveal delay-200">
+<div class="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-lg group-hover:bg-primary group-hover:text-white transition-all duration-300">
+<span class="material-symbols-outlined text-3xl">account_balance_wallet</span>
+</div>
+<h4 class="font-headline-md mb-xs">Receive Payment</h4>
+<p class="text-on-surface-variant text-label-sm">Securely collect via 20+ methods.</p>
+</div>
+<!-- Step 4 -->
+<div class="text-center group reveal delay-300">
+<div class="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-lg group-hover:bg-primary group-hover:text-white transition-all duration-300">
+<span class="material-symbols-outlined text-3xl">show_chart</span>
+</div>
+<h4 class="font-headline-md mb-xs">Track Growth</h4>
+<p class="text-on-surface-variant text-label-sm">Watch your business scale with AI.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Dashboard Preview / Bento Grid -->
+<section class="py-3xl bg-surface-container-high/20 overflow-hidden">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="grid grid-cols-12 gap-lg h-[600px] reveal">
+<div class="col-span-12 md:col-span-8 bg-white rounded-xl shadow-xl p-xl overflow-hidden relative border border-outline-variant/10">
+<div class="flex justify-between items-center mb-xl">
+<h3 class="font-headline-md">Advanced Analytics</h3>
+<div class="flex gap-xs">
+<span class="w-3 h-3 rounded-full bg-red-400"></span>
+<span class="w-3 h-3 rounded-full bg-yellow-400"></span>
+<span class="w-3 h-3 rounded-full bg-green-400"></span>
+</div>
+</div>
+<img class="w-full rounded-lg" data-alt="A sophisticated data visualization dashboard with interactive line graphs showing sales trends over 12 months. The color scheme is a professional mix of mint green and navy blue. The layout is spacious with large font sizes and subtle grid lines, creating a high-end financial software feeling." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3Rn8awZZs_w9CJJrSdNgdPmjQEXpjjhalTOo-fVWBPbvormvzc5NDCNZ_mfvXcPzlqiOYL1hrHcy_nYx8vW4270PoOXkDhUJvWILAW4i4EnZTA8HQQ1URju0092skB-lpPrPNnJMmcA9UzDIgaEGO1Vyg4bmBmRgcQJ_d8HKJONwrbvFIcUCDv4jWz_-hasJhTdQ1ki0D5hO1rqdpVZfSlakSxrsL49biJgmOeLLGpc7t5O35yVJJzrKkJIpRf6ribvozYS46UG1d"/>
+</div>
+<div class="col-span-12 md:col-span-4 grid grid-rows-2 gap-lg">
+<div class="bg-lavender/50 rounded-xl p-lg border border-outline-variant/10 shadow-lg flex flex-col justify-between">
+<span class="material-symbols-outlined text-secondary text-4xl">auto_awesome</span>
+<div>
+<h4 class="font-headline-md mb-xs">AI Insights</h4>
+<p class="text-on-surface-variant text-label-sm">"Your coffee sales peaked on Tuesday morning. Consider a morning promotion."</p>
+</div>
+</div>
+<div class="bg-primary/5 rounded-xl p-lg border border-outline-variant/10 shadow-lg flex flex-col justify-between">
+<span class="material-symbols-outlined text-primary text-4xl">inventory_2</span>
+<div>
+<h4 class="font-headline-md mb-xs">Smart Stock</h4>
+<p class="text-on-surface-variant text-label-sm">Automatically reordering top-selling items based on velocity.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Benefits -->
+<section class="py-3xl">
+<div class="max-w-container-max mx-auto px-lg grid md:grid-cols-2 lg:grid-cols-4 gap-xl">
+<div class="p-xl bg-white rounded-xl shadow-sm border border-outline-variant/10 reveal">
+<h3 class="font-headline-md text-primary mb-md">Faster Billing</h3>
+<p class="text-on-surface-variant">Reduce manual effort by 70% with automated invoicing cycles.</p>
+</div>
+<div class="p-xl bg-white rounded-xl shadow-sm border border-outline-variant/10 reveal delay-100">
+<h3 class="font-headline-md text-secondary mb-md">Smarter Stock</h3>
+<p class="text-on-surface-variant">Prevent overstocking and free up cash flow for what matters.</p>
+</div>
+<div class="p-xl bg-white rounded-xl shadow-sm border border-outline-variant/10 reveal delay-200">
+<h3 class="font-headline-md text-primary mb-md">AI Guidance</h3>
+<p class="text-on-surface-variant">Get a virtual CFO pointing out growth opportunities 24/7.</p>
+</div>
+<div class="p-xl bg-white rounded-xl shadow-sm border border-outline-variant/10 reveal delay-300">
+<h3 class="font-headline-md text-secondary mb-md">Better Data</h3>
+<p class="text-on-surface-variant">Accurate reports that make tax season a total breeze.</p>
+</div>
+</div>
+</section>
+<!-- Who Is It For -->
+<section class="py-3xl bg-surface-container-low">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg">Built for Every Business</h2>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-lg">
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">shopping_cart</span>
+<div class="font-headline-md">Grocery Stores</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">checkroom</span>
+<div class="font-headline-md">Retail Shops</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">medical_services</span>
+<div class="font-headline-md">Pharmacies</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">restaurant</span>
+<div class="font-headline-md">Restaurants</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">spa</span>
+<div class="font-headline-md">Salons & Spas</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">home_repair_service</span>
+<div class="font-headline-md">Service Providers</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">school</span>
+<div class="font-headline-md">Education</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">more_horiz</span>
+<div class="font-headline-md">And More...</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Testimonials -->
+<section class="py-3xl">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="grid md:grid-cols-3 gap-xl">
+<!-- Testimonial 1 -->
+<div class="bg-white p-xl rounded-xl shadow-md border border-outline-variant/10 reveal">
+<div class="flex text-yellow-400 mb-md">
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+</div>
+<p class="text-body-lg italic mb-xl">"Expensa changed how I look at my business. I finally know exactly where my money is going."</p>
+<div class="flex items-center gap-md">
+<img alt="Avatar" class="w-12 h-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRLJLKHi_VVGwlog-MhWFwVnboxlw64KbbJLQx-tcvKWIWLz5U6JyBGcB1JzECHo6wp9cMjUoVq5mrzETAgYzurcC7wcZR8mo-eewrR8YAEZ0BdbNqlLTO62-d4D4_se0ag8TLrU6rnXyOdn5zkpFwIKmUoALkbeBeqxi5tASMMhOIgt6A9dNSCaSpx6WVnwStvaERu-l_iLOI0DLNvP5gGheaWBt3mEjjTEuz_woeipitQZHTg8cfWNC9dgP9c6UmBE27U76qDCae"/>
+<div>
+<div class="font-bold">Sarah Jenkins</div>
+<div class="text-label-sm text-on-surface-variant">Owner, The Green Grocer</div>
+</div>
+</div>
+</div>
+<!-- Testimonial 2 -->
+<div class="bg-white p-xl rounded-xl shadow-md border border-outline-variant/10 reveal delay-100">
+<div class="flex text-yellow-400 mb-md">
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+</div>
+<p class="text-body-lg italic mb-xl">"The AI insights predicted a stock shortage before it happened. Saved me thousands in revenue."</p>
+<div class="flex items-center gap-md">
+<img alt="Avatar" class="w-12 h-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAggI2mR-lnFXjMlOqo8tYf7nCHj47N9KlQnrNOZ_GlnjdoF3ZoA9h0dzWwNd9ywWpnqpv9zkXKrKrP507J4ZaS5763f_tFtYoiD4An-bmUFgTmKWGvh-YHRG8c59wgf1TDr-oqBq_e2-juUnaI2VRgrESoB-vaIUuFwnFDQhlYwDS0KOX_z_2NHBkMcRZhf8tIZuPWItM9OOLQ1gvQDCQ2Fs-gYK5F5g3oPXBvgz-919pm79_1KREcLUP8d1RxmCi_SWIJ_Mk52KEN"/>
+<div>
+<div class="font-bold">Mark Chen</div>
+<div class="text-label-sm text-on-surface-variant">CEO, TechRetailer</div>
+</div>
+</div>
+</div>
+<!-- Testimonial 3 -->
+<div class="bg-white p-xl rounded-xl shadow-md border border-outline-variant/10 reveal delay-200">
+<div class="flex text-yellow-400 mb-md">
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+</div>
+<p class="text-body-lg italic mb-xl">"Setup took 10 minutes. The interface is so clean, my team didn't even need training."</p>
+<div class="flex items-center gap-md">
+<img alt="Avatar" class="w-12 h-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPsn-3L6zCStoDFIm10yGfgpCdrYc1TxZgd7sPiY4M1toFAjZijJRb-0nllmy4k3ASoz6MfvPfjR1jEoYYCmHV9P6pwKvlIQLxQxXjouPnZ-YZIjdaxRh-0k78qZ3FpiYVuZuFuK3CkuWgssL_q1LlQd0MmakHEeQH1L9UnszqAfNfRicIO7u6b5oMXAKXSJXbA0HbQB3PMafzA1foBEWdP2aXg7Eq_Zs2IUqy0GQJyVYHYCUk7BdFx_-oRP3blYgMnq1REptu1Qo6"/>
+<div>
+<div class="font-bold">Julia Roberts</div>
+<div class="text-label-sm text-on-surface-variant">Manager, Bloom Florals</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Pricing Section -->
+<section class="py-3xl bg-surface-container-lowest" id="pricing">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg mb-md">Simple, Transparent Pricing</h2>
+<p class="text-on-surface-variant text-body-lg">Scale with plans that grow with your business.</p>
+</div>
+<div class="grid lg:grid-cols-3 gap-xl">
+<!-- Starter -->
+<div class="p-xl rounded-xl border border-outline-variant/20 bg-white reveal">
+<div class="font-headline-md mb-md">Starter</div>
+<div class="mb-xl">
+<span class="text-display-lg-mobile font-bold">$29</span>
+<span class="text-on-surface-variant">/month</span>
+</div>
+<ul class="space-y-md mb-2xl">
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Up to 500 invoices/mo</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Basic Inventory</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> 2 User Accounts</li>
+<li class="flex items-center gap-md text-on-surface-variant/40"><span class="material-symbols-outlined">close</span> Advanced AI Insights</li>
+</ul>
+<button onclick="window.location.href='/app'" class="w-full py-md rounded-xl border border-primary text-primary font-bold hover:bg-primary/5 transition-colors">Choose Starter</button>
+</div>
+<!-- Business (Highlighted) -->
+<div class="p-xl rounded-xl border-2 border-primary bg-white shadow-2xl relative scale-105 reveal z-10">
+<div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-lg py-xs rounded-full font-label-xs">MOST POPULAR</div>
+<div class="font-headline-md mb-md">Business</div>
+<div class="mb-xl">
+<span class="text-display-lg-mobile font-bold">$79</span>
+<span class="text-on-surface-variant">/month</span>
+</div>
+<ul class="space-y-md mb-2xl">
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Unlimited invoices</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Multi-location Inventory</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> 10 User Accounts</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> AI Business Coaching</li>
+</ul>
+<button onclick="window.location.href='/app'" class="w-full py-md rounded-xl bg-primary text-on-primary font-bold hover:opacity-90 transition-opacity shadow-lg shadow-primary/30">Choose Business</button>
+</div>
+<!-- Enterprise -->
+<div class="p-xl rounded-xl border border-outline-variant/20 bg-white reveal">
+<div class="font-headline-md mb-md">Enterprise</div>
+<div class="mb-xl">
+<span class="text-display-lg-mobile font-bold">$199</span>
+<span class="text-on-surface-variant">/month</span>
+</div>
+<ul class="space-y-md mb-2xl">
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Custom API Integration</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Dedicated Account Manager</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Unlimited Everything</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> 24/7 Priority Support</li>
+</ul>
+<button class="w-full py-md rounded-xl border border-primary text-primary font-bold hover:bg-primary/5 transition-colors">Contact Sales</button>
+</div>
+</div>
+</div>
+</section>
+<!-- FAQ -->
+<section class="py-3xl" id="faq">
+<div class="max-w-3xl mx-auto px-lg">
+<div class="text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg">Frequently Asked Questions</h2>
+</div>
+<div class="space-y-md">
+<div class="bg-white rounded-xl border border-outline-variant/10 overflow-hidden reveal">
+<button class="w-full p-lg text-left font-headline-md flex justify-between items-center group" onclick="toggleFaq(this)">
+                            Is my business data secure?
+                            <span class="material-symbols-outlined transition-transform duration-300 group-[.active]:rotate-180">expand_more</span>
+</button>
+<div class="px-lg pb-lg text-on-surface-variant hidden">
+                            Yes, we use bank-level AES-256 encryption for all data storage and SSL/TLS for data in transit. Your business data is completely isolated and secure.
+                        </div>
+</div>
+<div class="bg-white rounded-xl border border-outline-variant/10 overflow-hidden reveal delay-100">
+<button class="w-full p-lg text-left font-headline-md flex justify-between items-center group" onclick="toggleFaq(this)">
+                            Can I import my existing product list?
+                            <span class="material-symbols-outlined transition-transform duration-300 group-[.active]:rotate-180">expand_more</span>
+</button>
+<div class="px-lg pb-lg text-on-surface-variant hidden">
+                            Absolutely. You can import your catalog via CSV, Excel, or directly sync from Shopify and WooCommerce in a few clicks.
+                        </div>
+</div>
+<div class="bg-white rounded-xl border border-outline-variant/10 overflow-hidden reveal delay-200">
+<button class="w-full p-lg text-left font-headline-md flex justify-between items-center group" onclick="toggleFaq(this)">
+                            Does it work offline?
+                            <span class="material-symbols-outlined transition-transform duration-300 group-[.active]:rotate-180">expand_more</span>
+</button>
+<div class="px-lg pb-lg text-on-surface-variant hidden">
+                            Our mobile app allows you to create invoices and manage stock offline. The data will automatically sync once you're back online.
+                        </div>
+</div>
+</div>
+</div>
+</section>
+<!-- Final CTA -->
+<section class="py-3xl px-lg">
+<div class="max-w-container-max mx-auto bg-primary rounded-3xl p-3xl text-center text-on-primary relative overflow-hidden reveal">
+<!-- Background Decoration -->
+<div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+<div class="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-20 -mb-20 blur-3xl"></div>
+<h2 class="font-display-lg text-display-lg-mobile md:text-display-lg mb-lg relative z-10">Ready to simplify your business?</h2>
+<p class="text-body-lg mb-2xl opacity-90 max-w-2xl mx-auto relative z-10">Join over 10,000+ business owners who trust Expensa to manage their daily operations.</p>
+<div class="flex flex-wrap justify-center gap-md relative z-10">
+<button onclick="window.location.href='/app'" class="bg-white text-primary px-3xl py-md rounded-xl font-bold text-lg hover:scale-105 transition-all">Get Started Free</button>
+<button class="border border-white/40 bg-white/10 backdrop-blur-md px-3xl py-md rounded-xl font-bold text-lg hover:bg-white/20 transition-all">Request Demo</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest dark:bg-inverse-surface border-t border-outline-variant/10">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-gutter max-w-container-max mx-auto px-lg py-2xl">
+<div class="col-span-2 md:col-span-1">
+<div class="font-headline-md font-bold text-primary mb-lg">Expensa</div>
+<p class="text-on-surface-variant font-label-sm max-w-xs mb-lg">The world's most intuitive platform for growing businesses.</p>
+<div class="flex gap-md">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary">qr_code_2</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary">language</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary">share</span>
+</div>
+</div>
+<div>
+<h4 class="font-bold mb-lg">Product</h4>
+<ul class="space-y-md font-label-sm text-on-surface-variant">
+<li class="hover:text-primary cursor-pointer hover:underline">Features</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Integrations</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Pricing</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Mobile App</li>
+</ul>
+</div>
+<div>
+<h4 class="font-bold mb-lg">Company</h4>
+<ul class="space-y-md font-label-sm text-on-surface-variant">
+<li class="hover:text-primary cursor-pointer hover:underline">About Us</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Careers</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Blog</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Contact</li>
+</ul>
+</div>
+<div>
+<h4 class="font-bold mb-lg">Support</h4>
+<ul class="space-y-md font-label-sm text-on-surface-variant">
+<li class="hover:text-primary cursor-pointer hover:underline">Help Center</li>
+<li class="hover:text-primary cursor-pointer hover:underline">API Docs</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Privacy Policy</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Terms</li>
+</ul>
+</div>
+</div>
+<div class="max-w-container-max mx-auto px-lg py-lg border-t border-outline-variant/10 text-center text-label-sm text-on-surface-variant">
+            © 2024 Expensa SaaS. All rights reserved.
+        </div>
+</footer>
+<script>
+        // Reveal animation on scroll
+        const reveals = document.querySelectorAll('.reveal');
+        const revealHandler = () => {
+            const windowHeight = window.innerHeight;
+            reveals.forEach(reveal => {
+                const revealTop = reveal.getBoundingClientRect().top;
+                if (revealTop < windowHeight - 100) {
+                    reveal.classList.add('active');
+                }
+            });
+        };
+        window.addEventListener('scroll', revealHandler);
+        window.addEventListener('load', revealHandler);
+
+        // FAQ Toggle
+        function toggleFaq(button) {
+            const content = button.nextElementSibling;
+            const isOpen = button.classList.contains('active');
+            
+            // Close all
+            document.querySelectorAll('.faq-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.faq-btn').forEach(el => el.classList.remove('active'));
+
+            if (!isOpen) {
+                content.classList.remove('hidden');
+                button.classList.add('active');
+            } else {
+                content.classList.add('hidden');
+                button.classList.remove('active');
+            }
+        }
+
+        // Float animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes float {
+                0% { transform: translateY(0px); }
+                50% { transform: translateY(-15px); }
+                100% { transform: translateY(0px); }
+            }
+            @keyframes bounce-slow {
+                0%, 100% { transform: translateY(-5%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+                50% { transform: translateY(0); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+            }
+            .animate-float {
+                animation: float 5s ease-in-out infinite;
+            }
+            .animate-bounce-slow {
+                animation: bounce-slow 4s ease-in-out infinite;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
 </body>
 </html>

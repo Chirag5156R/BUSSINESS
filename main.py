@@ -1,9 +1,9 @@
 """
 Ledgerly API — FastAPI backend for the billing / sales / stock / customers app.
 
-This replaces app1.py (Streamlit). Same SQLite schema and business logic,
-now exposed as a JSON REST API that any frontend (the included index.html,
-or something else) can call.
+Multi-tenant: every business owner registers/logs in, and every row of data
+(customers, products, bills, payments) is scoped to their account. One shared
+SQLite database, full logical isolation via user_id + auth tokens.
 
 Run with:
     pip install -r requirements.txt
@@ -14,20 +14,24 @@ Run with:
 import os
 import sqlite3
 import datetime
+import hashlib
+import secrets
 from contextlib import contextmanager
 from typing import Optional, List
 
 import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ===========================================================================
-# SECTION 1: DATABASE LAYER (same schema as the original Streamlit app)
+# SECTION 1: DATABASE LAYER
 # ===========================================================================
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "expense.db")
+
+SESSION_LIFETIME_DAYS = 30
 
 
 @contextmanager
@@ -46,34 +50,60 @@ def init_db():
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                business_name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                password_salt TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now', 'localtime'))
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                expires_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        cur.execute("""
             CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
-                mobile TEXT UNIQUE,
-                created_at TEXT DEFAULT (datetime('now', 'localtime'))
+                mobile TEXT,
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                UNIQUE(user_id, mobile),
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 image_path TEXT,
                 cost_price REAL NOT NULL,
                 sell_price REAL NOT NULL,
                 stock_qty INTEGER NOT NULL DEFAULT 0,
                 reorder_level INTEGER NOT NULL DEFAULT 5,
-                created_at TEXT DEFAULT (datetime('now', 'localtime'))
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS bills (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
                 customer_id INTEGER,
                 bill_date TEXT DEFAULT (datetime('now', 'localtime')),
                 total_amount REAL NOT NULL DEFAULT 0,
                 paid_amount REAL NOT NULL DEFAULT 0,
                 balance_due REAL NOT NULL DEFAULT 0,
                 payment_mode TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (customer_id) REFERENCES customers(id)
             )
         """)
@@ -110,39 +140,133 @@ def rows_to_list(rows) -> List[dict]:
     return [dict(r) for r in rows]
 
 
+def with_image_data(product: Optional[dict]) -> Optional[dict]:
+    """The frontend refers to a product's image as `image_data` (it may be a data: URL).
+    The DB column is `image_path` -- alias it here so the API shape matches the UI."""
+    if product is None:
+        return None
+    product = dict(product)
+    product["image_data"] = product.pop("image_path", None)
+    return product
+
+
+def products_with_image_data(products: List[dict]) -> List[dict]:
+    return [with_image_data(p) for p in products]
+
+
 # ---------------------------------------------------------------------------
-# Customers
+# Auth / users
 # ---------------------------------------------------------------------------
 
-def db_add_customer(name, mobile):
+def hash_password(password: str, salt: Optional[str] = None) -> tuple:
+    if salt is None:
+        salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200_000)
+    return digest.hex(), salt
+
+
+def db_create_user(business_name, email, password):
+    password_hash, salt = hash_password(password)
     with get_connection() as conn:
         try:
-            cur = conn.execute("INSERT INTO customers (name, mobile) VALUES (?, ?)", (name, mobile))
+            cur = conn.execute(
+                "INSERT INTO users (business_name, email, password_hash, password_salt) VALUES (?, ?, ?, ?)",
+                (business_name, email.lower(), password_hash, salt),
+            )
             conn.commit()
             return cur.lastrowid
         except sqlite3.IntegrityError:
             return None
 
 
-def db_get_all_customers():
+def db_get_user_by_email(email):
     with get_connection() as conn:
-        return rows_to_list(conn.execute("SELECT * FROM customers ORDER BY name").fetchall())
+        return row_to_dict(conn.execute(
+            "SELECT * FROM users WHERE email = ?", (email.lower(),)
+        ).fetchone())
 
 
-def db_get_outstanding_balances():
+def db_verify_login(email, password):
+    user = db_get_user_by_email(email)
+    if user is None:
+        return None
+    check_hash, _ = hash_password(password, user["password_salt"])
+    if not secrets.compare_digest(check_hash, user["password_hash"]):
+        return None
+    return user
+
+
+def db_create_session(user_id):
+    token = secrets.token_urlsafe(32)
+    expires_at = (datetime.datetime.now() + datetime.timedelta(days=SESSION_LIFETIME_DAYS)).isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
+            (token, user_id, expires_at),
+        )
+        conn.commit()
+    return token
+
+
+def db_get_session_user(token):
+    with get_connection() as conn:
+        row = conn.execute("""
+            SELECT users.id, users.business_name, users.email, sessions.expires_at
+            FROM sessions JOIN users ON sessions.user_id = users.id
+            WHERE sessions.token = ?
+        """, (token,)).fetchone()
+        if row is None:
+            return None
+        row = dict(row)
+        if datetime.datetime.fromisoformat(row["expires_at"]) < datetime.datetime.now():
+            conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            conn.commit()
+            return None
+        return row
+
+
+def db_delete_session(token):
+    with get_connection() as conn:
+        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Customers
+# ---------------------------------------------------------------------------
+
+def db_add_customer(user_id, name, mobile):
+    with get_connection() as conn:
+        try:
+            cur = conn.execute("INSERT INTO customers (user_id, name, mobile) VALUES (?, ?, ?)",
+                                (user_id, name, mobile))
+            conn.commit()
+            return cur.lastrowid
+        except sqlite3.IntegrityError:
+            return None
+
+
+def db_get_all_customers(user_id):
+    with get_connection() as conn:
+        return rows_to_list(conn.execute(
+            "SELECT * FROM customers WHERE user_id = ? ORDER BY name", (user_id,)
+        ).fetchall())
+
+
+def db_get_outstanding_balances(user_id):
     with get_connection() as conn:
         return rows_to_list(conn.execute("""
             SELECT customers.id, customers.name, customers.mobile,
                    SUM(bills.balance_due) AS total_due,
                    COUNT(bills.id) AS bill_count
             FROM bills JOIN customers ON bills.customer_id = customers.id
-            WHERE bills.balance_due > 0
+            WHERE bills.balance_due > 0 AND bills.user_id = ?
             GROUP BY customers.id
             ORDER BY total_due DESC
-        """).fetchall())
+        """, (user_id,)).fetchall())
 
 
-def db_get_customer_payment_history():
+def db_get_customer_payment_history(user_id):
     with get_connection() as conn:
         return rows_to_list(conn.execute("""
             SELECT customers.id, customers.name, customers.mobile,
@@ -152,44 +276,89 @@ def db_get_customer_payment_history():
                    SUM(bills.balance_due) AS total_due,
                    SUM(CASE WHEN bills.balance_due > 0 THEN 1 ELSE 0 END) AS unpaid_bill_count
             FROM customers LEFT JOIN bills ON customers.id = bills.customer_id
+            WHERE customers.user_id = ?
             GROUP BY customers.id
             HAVING total_bills > 0
             ORDER BY total_due DESC
-        """).fetchall())
+        """, (user_id,)).fetchall())
 
 
 # ---------------------------------------------------------------------------
 # Products / stock
 # ---------------------------------------------------------------------------
 
-def db_add_product(name, cost_price, sell_price, stock_qty, reorder_level=5):
+def db_add_product(user_id, name, cost_price, sell_price, stock_qty, reorder_level=5, image_path=None):
     with get_connection() as conn:
         cur = conn.execute(
-            """INSERT INTO products (name, cost_price, sell_price, stock_qty, reorder_level)
-               VALUES (?, ?, ?, ?, ?)""",
-            (name, cost_price, sell_price, stock_qty, reorder_level),
+            """INSERT INTO products (user_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path),
         )
         conn.commit()
         return cur.lastrowid
 
 
-def db_update_stock(product_id, qty_change):
+def db_update_stock(user_id, product_id, qty_change):
     with get_connection() as conn:
-        cur = conn.execute("UPDATE products SET stock_qty = stock_qty + ? WHERE id = ?", (qty_change, product_id))
+        cur = conn.execute(
+            "UPDATE products SET stock_qty = stock_qty + ? WHERE id = ? AND user_id = ?",
+            (qty_change, product_id, user_id),
+        )
         conn.commit()
         if cur.rowcount == 0:
             raise KeyError("product not found")
 
 
-def db_get_all_products():
+def db_update_product(user_id, product_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path=None):
     with get_connection() as conn:
-        return rows_to_list(conn.execute("SELECT * FROM products ORDER BY name").fetchall())
+        if image_path is not None:
+            cur = conn.execute(
+                """UPDATE products SET name=?, cost_price=?, sell_price=?, stock_qty=?,
+                       reorder_level=?, image_path=? WHERE id=? AND user_id=?""",
+                (name, cost_price, sell_price, stock_qty, reorder_level, image_path, product_id, user_id),
+            )
+        else:
+            cur = conn.execute(
+                """UPDATE products SET name=?, cost_price=?, sell_price=?, stock_qty=?,
+                       reorder_level=? WHERE id=? AND user_id=?""",
+                (name, cost_price, sell_price, stock_qty, reorder_level, product_id, user_id),
+            )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise KeyError("product not found")
+        return row_to_dict(conn.execute(
+            "SELECT * FROM products WHERE id=? AND user_id=?", (product_id, user_id)
+        ).fetchone())
 
 
-def db_get_low_stock_products():
+def db_delete_product(user_id, product_id):
+    with get_connection() as conn:
+        owned = conn.execute(
+            "SELECT id FROM products WHERE id = ? AND user_id = ?", (product_id, user_id)
+        ).fetchone()
+        if owned is None:
+            raise KeyError("product not found")
+        in_use = conn.execute(
+            "SELECT COUNT(*) FROM bill_items WHERE product_id = ?", (product_id,)
+        ).fetchone()[0]
+        if in_use:
+            raise ValueError("This product appears on existing bills and can't be deleted.")
+        conn.execute("DELETE FROM products WHERE id = ? AND user_id = ?", (product_id, user_id))
+        conn.commit()
+
+
+def db_get_all_products(user_id):
     with get_connection() as conn:
         return rows_to_list(conn.execute(
-            "SELECT * FROM products WHERE stock_qty <= reorder_level ORDER BY stock_qty"
+            "SELECT * FROM products WHERE user_id = ? ORDER BY name", (user_id,)
+        ).fetchall())
+
+
+def db_get_low_stock_products(user_id):
+    with get_connection() as conn:
+        return rows_to_list(conn.execute(
+            "SELECT * FROM products WHERE user_id = ? AND stock_qty <= reorder_level ORDER BY stock_qty",
+            (user_id,),
         ).fetchall())
 
 
@@ -197,20 +366,30 @@ def db_get_low_stock_products():
 # Billing
 # ---------------------------------------------------------------------------
 
-def db_create_bill(customer_id, items, paid_amount, payment_mode):
+def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
     with get_connection() as conn:
+        if customer_id is not None:
+            owned = conn.execute(
+                "SELECT id FROM customers WHERE id = ? AND user_id = ?", (customer_id, user_id)
+            ).fetchone()
+            if owned is None:
+                raise ValueError("Customer not found")
+
         total_amount = sum(i["quantity"] * i["price_each"] for i in items)
         balance_due = round(total_amount - paid_amount, 2)
 
         cur = conn.execute(
-            """INSERT INTO bills (customer_id, total_amount, paid_amount, balance_due, payment_mode)
-               VALUES (?, ?, ?, ?, ?)""",
-            (customer_id, total_amount, paid_amount, balance_due, payment_mode),
+            """INSERT INTO bills (user_id, customer_id, total_amount, paid_amount, balance_due, payment_mode)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (user_id, customer_id, total_amount, paid_amount, balance_due, payment_mode),
         )
         bill_id = cur.lastrowid
 
         for item in items:
-            prod = conn.execute("SELECT stock_qty FROM products WHERE id = ?", (item["product_id"],)).fetchone()
+            prod = conn.execute(
+                "SELECT stock_qty FROM products WHERE id = ? AND user_id = ?",
+                (item["product_id"], user_id),
+            ).fetchone()
             if prod is None:
                 raise ValueError(f"Product {item['product_id']} not found")
             if item["quantity"] > prod["stock_qty"]:
@@ -232,9 +411,11 @@ def db_create_bill(customer_id, items, paid_amount, payment_mode):
         return bill_id
 
 
-def db_add_payment(bill_id, amount, mode):
+def db_add_payment(user_id, bill_id, amount, mode):
     with get_connection() as conn:
-        bill = conn.execute("SELECT balance_due FROM bills WHERE id = ?", (bill_id,)).fetchone()
+        bill = conn.execute(
+            "SELECT balance_due FROM bills WHERE id = ? AND user_id = ?", (bill_id, user_id)
+        ).fetchone()
         if bill is None:
             raise KeyError("bill not found")
         conn.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (?, ?, ?)", (bill_id, amount, mode))
@@ -245,14 +426,14 @@ def db_add_payment(bill_id, amount, mode):
         conn.commit()
 
 
-def db_get_bills(start_date=None, end_date=None, customer_id=None):
+def db_get_bills(user_id, start_date=None, end_date=None, customer_id=None):
     with get_connection() as conn:
         query = """
             SELECT bills.*, customers.name AS customer_name, customers.mobile AS customer_mobile
             FROM bills LEFT JOIN customers ON bills.customer_id = customers.id
-            WHERE 1=1
+            WHERE bills.user_id = ?
         """
-        params = []
+        params = [user_id]
         if start_date:
             query += " AND date(bill_date) >= date(?)"
             params.append(start_date)
@@ -266,8 +447,13 @@ def db_get_bills(start_date=None, end_date=None, customer_id=None):
         return rows_to_list(conn.execute(query, params).fetchall())
 
 
-def db_get_bill_items(bill_id):
+def db_get_bill_items(user_id, bill_id):
     with get_connection() as conn:
+        owned = conn.execute(
+            "SELECT id FROM bills WHERE id = ? AND user_id = ?", (bill_id, user_id)
+        ).fetchone()
+        if owned is None:
+            raise KeyError("bill not found")
         return rows_to_list(conn.execute(
             """SELECT bill_items.*, products.name AS product_name
                FROM bill_items JOIN products ON bill_items.product_id = products.id
@@ -280,7 +466,7 @@ def db_get_bill_items(bill_id):
 # Sales / dashboard analytics
 # ---------------------------------------------------------------------------
 
-def db_get_sales_summary(start_date, end_date):
+def db_get_sales_summary(user_id, start_date, end_date):
     with get_connection() as conn:
         row = conn.execute("""
             SELECT COALESCE(SUM(total_amount), 0) AS revenue,
@@ -288,26 +474,26 @@ def db_get_sales_summary(start_date, end_date):
                    COALESCE(SUM(balance_due), 0) AS outstanding,
                    COUNT(*) AS bill_count
             FROM bills
-            WHERE date(bill_date) BETWEEN date(?) AND date(?)
-        """, (start_date, end_date)).fetchone()
+            WHERE user_id = ? AND date(bill_date) BETWEEN date(?) AND date(?)
+        """, (user_id, start_date, end_date)).fetchone()
         return dict(row)
 
 
-def db_get_profit_loss(start_date, end_date):
+def db_get_profit_loss(user_id, start_date, end_date):
     with get_connection() as conn:
         row = conn.execute("""
             SELECT
                 COALESCE(SUM(bill_items.quantity * bill_items.price_each), 0) AS revenue,
                 COALESCE(SUM(bill_items.quantity * bill_items.cost_each), 0) AS cost
             FROM bill_items JOIN bills ON bill_items.bill_id = bills.id
-            WHERE date(bills.bill_date) BETWEEN date(?) AND date(?)
-        """, (start_date, end_date)).fetchone()
+            WHERE bills.user_id = ? AND date(bills.bill_date) BETWEEN date(?) AND date(?)
+        """, (user_id, start_date, end_date)).fetchone()
         revenue = row["revenue"] or 0
         cost = row["cost"] or 0
         return {"revenue": revenue, "cost": cost, "profit": revenue - cost}
 
 
-def db_get_product_sales_ranking(start_date, end_date):
+def db_get_product_sales_ranking(user_id, start_date, end_date):
     with get_connection() as conn:
         return rows_to_list(conn.execute("""
             SELECT products.id, products.name,
@@ -317,17 +503,22 @@ def db_get_product_sales_ranking(start_date, end_date):
             LEFT JOIN bill_items ON products.id = bill_items.product_id
             LEFT JOIN bills ON bill_items.bill_id = bills.id
                 AND date(bills.bill_date) BETWEEN date(?) AND date(?)
+            WHERE products.user_id = ?
             GROUP BY products.id
             ORDER BY units_sold DESC
-        """, (start_date, end_date)).fetchall())
+        """, (start_date, end_date, user_id)).fetchall())
 
 
-def db_get_home_summary():
+def db_get_home_summary(user_id):
     with get_connection() as conn:
-        total_customers = conn.execute("SELECT COUNT(*) FROM customers").fetchone()[0]
-        total_products = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
-        total_bills = conn.execute("SELECT COUNT(*) FROM bills").fetchone()[0]
-        total_due = conn.execute("SELECT COALESCE(SUM(balance_due),0) FROM bills").fetchone()[0]
+        total_customers = conn.execute(
+            "SELECT COUNT(*) FROM customers WHERE user_id = ?", (user_id,)).fetchone()[0]
+        total_products = conn.execute(
+            "SELECT COUNT(*) FROM products WHERE user_id = ?", (user_id,)).fetchone()[0]
+        total_bills = conn.execute(
+            "SELECT COUNT(*) FROM bills WHERE user_id = ?", (user_id,)).fetchone()[0]
+        total_due = conn.execute(
+            "SELECT COALESCE(SUM(balance_due),0) FROM bills WHERE user_id = ?", (user_id,)).fetchone()[0]
         return {
             "total_customers": total_customers,
             "total_products": total_products,
@@ -424,12 +615,12 @@ def analyze_stock(low_stock_products, all_products):
     return call_groq(system_prompt, user_prompt)
 
 
-def ai_coach_reply(message: str, history: list):
+def ai_coach_reply(user_id: int, message: str, history: list):
     """Freeform AI Coach chat, grounded in the shop's live numbers."""
     today = datetime.date.today()
     month_start = today.replace(day=1)
-    revenue, cost, profit = db_get_profit_loss(str(month_start), str(today)).values()
-    home = db_get_home_summary()
+    revenue, cost, profit = db_get_profit_loss(user_id, str(month_start), str(today)).values()
+    home = db_get_home_summary(user_id)
 
     system_prompt = (
         "You are Ledgerly's AI Financial Coach for a small retail shop owner. You have their live "
@@ -485,15 +676,57 @@ def on_startup():
     init_db()
 
 
-INDEX_HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LANDING_HTML_PATH = os.path.join(BASE_DIR, "index.html")   # marketing / startup page
+APP_HTML_PATH = os.path.join(BASE_DIR, "app.html")          # the actual Ledgerly app
 
 
 @app.get("/")
-def serve_frontend():
-    return FileResponse(INDEX_HTML_PATH)
+def serve_landing():
+    return FileResponse(LANDING_HTML_PATH)
+
+
+@app.get("/app")
+def serve_app():
+    return FileResponse(APP_HTML_PATH)
+
+
+# ---------- Auth dependency ----------
+
+def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not logged in.")
+    token = authorization[len("Bearer "):].strip()
+    user = db_get_session_user(token)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
+    return user
+
+
+def uid(user: dict = Depends(get_current_user)) -> int:
+    return user["id"]
 
 
 # ---------- Pydantic models ----------
+
+class RegisterRequest(BaseModel):
+    business_name: str
+    email: str
+    password: str = Field(min_length=6)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v):
+        v = v.strip()
+        if "@" not in v or "." not in v.split("@")[-1] or len(v) < 5:
+            raise ValueError("Enter a valid email address.")
+        return v
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
 
 class CustomerCreate(BaseModel):
     name: str
@@ -506,6 +739,16 @@ class ProductCreate(BaseModel):
     sell_price: float = Field(ge=0)
     stock_qty: int = Field(ge=0, default=0)
     reorder_level: int = Field(ge=0, default=5)
+    image_data: Optional[str] = None
+
+
+class ProductUpdate(BaseModel):
+    name: str
+    cost_price: float = Field(ge=0)
+    sell_price: float = Field(ge=0)
+    stock_qty: int = Field(ge=0)
+    reorder_level: int = Field(ge=0)
+    image_data: Optional[str] = None
 
 
 class RestockRequest(BaseModel):
@@ -536,65 +779,119 @@ class CoachMessage(BaseModel):
     history: List[dict] = []
 
 
+# ---------- Auth ----------
+
+@app.post("/api/auth/register", status_code=201)
+def register(payload: RegisterRequest):
+    user_id = db_create_user(payload.business_name.strip(), str(payload.email), payload.password)
+    if user_id is None:
+        raise HTTPException(status_code=409, detail="An account with this email already exists.")
+    token = db_create_session(user_id)
+    return {"token": token, "business_name": payload.business_name, "email": payload.email}
+
+
+@app.post("/api/auth/login")
+def login(payload: LoginRequest):
+    user = db_verify_login(str(payload.email), payload.password)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Incorrect email or password.")
+    token = db_create_session(user["id"])
+    return {"token": token, "business_name": user["business_name"], "email": user["email"]}
+
+
+@app.post("/api/auth/logout")
+def logout(authorization: Optional[str] = Header(None)):
+    if authorization and authorization.startswith("Bearer "):
+        db_delete_session(authorization[len("Bearer "):].strip())
+    return {"ok": True}
+
+
+@app.get("/api/auth/me")
+def me(user: dict = Depends(get_current_user)):
+    return {"business_name": user["business_name"], "email": user["email"]}
+
+
 # ---------- Home / summary ----------
 
 @app.get("/api/summary")
-def get_summary():
-    return db_get_home_summary()
+def get_summary(user_id: int = Depends(uid)):
+    return db_get_home_summary(user_id)
 
 
 # ---------- Customers ----------
 
 @app.get("/api/customers")
-def list_customers():
-    return db_get_all_customers()
+def list_customers(user_id: int = Depends(uid)):
+    return db_get_all_customers(user_id)
 
 
 @app.post("/api/customers", status_code=201)
-def create_customer(payload: CustomerCreate):
-    cid = db_add_customer(payload.name.strip(), payload.mobile.strip())
+def create_customer(payload: CustomerCreate, user_id: int = Depends(uid)):
+    cid = db_add_customer(user_id, payload.name.strip(), payload.mobile.strip())
     if cid is None:
         raise HTTPException(status_code=409, detail="A customer with this mobile number already exists.")
     return {"id": cid, "name": payload.name, "mobile": payload.mobile}
 
 
 @app.get("/api/customers/outstanding")
-def outstanding_balances():
-    return db_get_outstanding_balances()
+def outstanding_balances(user_id: int = Depends(uid)):
+    return db_get_outstanding_balances(user_id)
 
 
 @app.get("/api/customers/payment-history")
-def payment_history():
-    return db_get_customer_payment_history()
+def payment_history(user_id: int = Depends(uid)):
+    return db_get_customer_payment_history(user_id)
 
 
 # ---------- Products / stock ----------
 
 @app.get("/api/products")
-def list_products():
-    return db_get_all_products()
+def list_products(user_id: int = Depends(uid)):
+    return products_with_image_data(db_get_all_products(user_id))
 
 
 @app.get("/api/products/low-stock")
-def low_stock_products():
-    return db_get_low_stock_products()
+def low_stock_products(user_id: int = Depends(uid)):
+    return products_with_image_data(db_get_low_stock_products(user_id))
 
 
 @app.post("/api/products", status_code=201)
-def create_product(payload: ProductCreate):
-    if payload.sell_price < payload.cost_price:
-        pid = db_add_product(payload.name.strip(), payload.cost_price, payload.sell_price,
-                             payload.stock_qty, payload.reorder_level)
-        return {"id": pid, "warning": "Selling below cost.", **payload.dict()}
-    pid = db_add_product(payload.name.strip(), payload.cost_price, payload.sell_price,
-                         payload.stock_qty, payload.reorder_level)
-    return {"id": pid, **payload.dict()}
+def create_product(payload: ProductCreate, user_id: int = Depends(uid)):
+    pid = db_add_product(user_id, payload.name.strip(), payload.cost_price, payload.sell_price,
+                         payload.stock_qty, payload.reorder_level, payload.image_data)
+    warning = payload.sell_price < payload.cost_price
+    result = {"id": pid, **payload.dict()}
+    if warning:
+        result["warning"] = "Selling below cost."
+    return result
+
+
+@app.put("/api/products/{product_id}")
+def update_product(product_id: int, payload: ProductUpdate, user_id: int = Depends(uid)):
+    try:
+        updated = db_update_product(user_id, product_id, payload.name.strip(), payload.cost_price,
+                                    payload.sell_price, payload.stock_qty, payload.reorder_level,
+                                    payload.image_data)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return with_image_data(updated)
+
+
+@app.delete("/api/products/{product_id}")
+def delete_product(product_id: int, user_id: int = Depends(uid)):
+    try:
+        db_delete_product(user_id, product_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Product not found")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"ok": True}
 
 
 @app.post("/api/products/{product_id}/restock")
-def restock_product(product_id: int, payload: RestockRequest):
+def restock_product(product_id: int, payload: RestockRequest, user_id: int = Depends(uid)):
     try:
-        db_update_stock(product_id, payload.qty)
+        db_update_stock(user_id, product_id, payload.qty)
     except KeyError:
         raise HTTPException(status_code=404, detail="Product not found")
     return {"ok": True}
@@ -604,12 +901,12 @@ def restock_product(product_id: int, payload: RestockRequest):
 
 @app.get("/api/bills")
 def list_bills(start_date: Optional[str] = None, end_date: Optional[str] = None,
-               customer_id: Optional[int] = None):
-    return db_get_bills(start_date, end_date, customer_id)
+               customer_id: Optional[int] = None, user_id: int = Depends(uid)):
+    return db_get_bills(user_id, start_date, end_date, customer_id)
 
 
 @app.post("/api/bills", status_code=201)
-def create_bill(payload: BillCreate):
+def create_bill(payload: BillCreate, user_id: int = Depends(uid)):
     items = [i.dict() for i in payload.items]
     total = sum(i["quantity"] * i["price_each"] for i in items)
     balance_due = round(total - payload.paid_amount, 2)
@@ -621,21 +918,24 @@ def create_bill(payload: BillCreate):
                    "Register the customer first, or collect full payment.",
         )
     try:
-        bill_id = db_create_bill(payload.customer_id, items, payload.paid_amount, payload.payment_mode)
+        bill_id = db_create_bill(user_id, payload.customer_id, items, payload.paid_amount, payload.payment_mode)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"id": bill_id, "total_amount": total, "balance_due": balance_due}
 
 
 @app.get("/api/bills/{bill_id}/items")
-def bill_items(bill_id: int):
-    return db_get_bill_items(bill_id)
+def bill_items(bill_id: int, user_id: int = Depends(uid)):
+    try:
+        return db_get_bill_items(user_id, bill_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Bill not found")
 
 
 @app.post("/api/bills/{bill_id}/payments", status_code=201)
-def record_payment(bill_id: int, payload: PaymentCreate):
+def record_payment(bill_id: int, payload: PaymentCreate, user_id: int = Depends(uid)):
     try:
-        db_add_payment(bill_id, payload.amount, payload.mode)
+        db_add_payment(user_id, bill_id, payload.amount, payload.mode)
     except KeyError:
         raise HTTPException(status_code=404, detail="Bill not found")
     return {"ok": True}
@@ -644,44 +944,45 @@ def record_payment(bill_id: int, payload: PaymentCreate):
 # ---------- Sales / dashboard ----------
 
 @app.get("/api/sales/summary")
-def sales_summary(start_date: str, end_date: str, customer_id: Optional[int] = None):
-    return db_get_sales_summary(start_date, end_date)
+def sales_summary(start_date: str, end_date: str, customer_id: Optional[int] = None,
+                   user_id: int = Depends(uid)):
+    return db_get_sales_summary(user_id, start_date, end_date)
 
 
 @app.get("/api/dashboard/profit-loss")
-def profit_loss(start_date: str, end_date: str):
-    return db_get_profit_loss(start_date, end_date)
+def profit_loss(start_date: str, end_date: str, user_id: int = Depends(uid)):
+    return db_get_profit_loss(user_id, start_date, end_date)
 
 
 @app.get("/api/dashboard/product-ranking")
-def product_ranking(start_date: str, end_date: str):
-    return db_get_product_sales_ranking(start_date, end_date)
+def product_ranking(start_date: str, end_date: str, user_id: int = Depends(uid)):
+    return db_get_product_sales_ranking(user_id, start_date, end_date)
 
 
 # ---------- AI (Groq) ----------
 
 @app.post("/api/ai/sales-insights")
-def ai_sales_insights(start_date: str, end_date: str):
-    revenue, cost, profit = db_get_profit_loss(start_date, end_date).values()
-    ranking = db_get_product_sales_ranking(start_date, end_date)
+def ai_sales_insights(start_date: str, end_date: str, user_id: int = Depends(uid)):
+    revenue, cost, profit = db_get_profit_loss(user_id, start_date, end_date).values()
+    ranking = db_get_product_sales_ranking(user_id, start_date, end_date)
     top = [p for p in ranking if p["units_sold"] > 0][:5]
     slow = [p for p in ranking if p["units_sold"] == 0]
     return {"insight": analyze_sales_and_dashboard(revenue, cost, profit, top, slow)}
 
 
 @app.post("/api/ai/stock-insights")
-def ai_stock_insights():
-    low = db_get_low_stock_products()
-    all_products = db_get_all_products()
+def ai_stock_insights(user_id: int = Depends(uid)):
+    low = db_get_low_stock_products(user_id)
+    all_products = db_get_all_products(user_id)
     return {"insight": analyze_stock(low, all_products)}
 
 
 @app.post("/api/ai/payment-behavior")
-def ai_payment_behavior():
-    history = db_get_customer_payment_history()
+def ai_payment_behavior(user_id: int = Depends(uid)):
+    history = db_get_customer_payment_history(user_id)
     return {"insight": analyze_customer_payment_behavior(history)}
 
 
 @app.post("/api/ai/coach")
-def ai_coach(payload: CoachMessage):
-    return {"text": ai_coach_reply(payload.message, payload.history)}
+def ai_coach(payload: CoachMessage, user_id: int = Depends(uid)):
+    return {"text": ai_coach_reply(user_id, payload.message, payload.history)}
