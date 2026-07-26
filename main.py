@@ -157,6 +157,8 @@ def products_with_image_data(products: List[dict]) -> List[dict]:
 # ---------------------------------------------------------------------------
 # Auth / users
 # ---------------------------------------------------------------------------
+email="xyz.com"
+password="admin123"
 
 def hash_password(password: str, salt: Optional[str] = None) -> tuple:
     if salt is None:
@@ -722,9 +724,10 @@ class RegisterRequest(BaseModel):
             raise ValueError("Enter a valid email address.")
         return v
 
-
+email="xyz@gmail.com"
+password="admin123"
 class LoginRequest(BaseModel):
-    email: str
+    email:str
     password: str
 
 
