@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Expensa - Smart Business Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .reveal {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.6s ease-out;
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "outline": "#6e7a6f",
+                    "on-surface-variant": "#3e4a40",
+                    "surface-container": "#eaefe7",
+                    "on-secondary-container": "#666270",
+                    "surface-container-low": "#f0f5ed",
+                    "on-primary-container": "#f6fff4",
+                    "surface-container-lowest": "#ffffff",
+                    "on-primary": "#ffffff",
+                    "on-background": "#171d18",
+                    "on-tertiary-fixed-variant": "#3e4944",
+                    "surface-tint": "#006d3b",
+                    "secondary-fixed-dim": "#c9c4d4",
+                    "on-tertiary-fixed": "#131e19",
+                    "background": "#FFFDF8",
+                    "error": "#ba1a1a",
+                    "on-error-container": "#93000a",
+                    "on-tertiary-container": "#f5fff8",
+                    "secondary": "#605c6a",
+                    "surface-container-high": "#e4eae2",
+                    "inverse-surface": "#2c322d",
+                    "on-primary-fixed": "#00210e",
+                    "primary-fixed-dim": "#73db96",
+                    "tertiary": "#535f59",
+                    "on-surface": "#171d18",
+                    "secondary-fixed": "#e6e0f1",
+                    "on-error": "#ffffff",
+                    "primary-container": "#0a864b",
+                    "inverse-primary": "#73db96",
+                    "inverse-on-surface": "#edf2ea",
+                    "surface-container-highest": "#dee4dc",
+                    "primary": "#2E9B5D",
+                    "surface-bright": "#f5fbf3",
+                    "surface-variant": "#dee4dc",
+                    "tertiary-fixed": "#d9e6de",
+                    "surface": "#f5fbf3",
+                    "on-secondary-fixed-variant": "#484552",
+                    "primary-fixed": "#8ff8b1",
+                    "on-secondary": "#ffffff",
+                    "secondary-container": "#e6e0f1",
+                    "surface-dim": "#d6dcd4",
+                    "outline-variant": "#bdcabd",
+                    "on-primary-fixed-variant": "#00522b",
+                    "error-container": "#ffdad6",
+                    "tertiary-container": "#6b7771",
+                    "on-secondary-fixed": "#1c1a26",
+                    "tertiary-fixed-dim": "#bdcac2",
+                    "on-tertiary": "#ffffff",
+                    "lavender": "#F4EEFF"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "20px",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "2xl": "48px",
+                    "sm": "8px",
+                    "margin-mobile": "16px",
+                    "md": "16px",
+                    "lg": "24px",
+                    "container-max": "1280px",
+                    "gutter": "24px",
+                    "xl": "32px",
+                    "unit": "4px",
+                    "xs": "4px",
+                    "3xl": "64px"
+            },
+            "fontFamily": {
+                    "label-xs": ["Plus Jakarta Sans"],
+                    "display-lg": ["Plus Jakarta Sans"],
+                    "body-md": ["Plus Jakarta Sans"],
+                    "display-lg-mobile": ["Plus Jakarta Sans"],
+                    "body-lg": ["Plus Jakarta Sans"],
+                    "label-sm": ["Plus Jakarta Sans"],
+                    "headline-md": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "label-xs": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.03em", "fontWeight": "600"}],
+                    "display-lg": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "display-lg-mobile": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "label-sm": ["14px", {"lineHeight": "1.4", "letterSpacing": "0.01em", "fontWeight": "500"}],
+                    "headline-md": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+            }
+    },
+        },
+      }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary/20">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface/80 dark:bg-surface/80 backdrop-blur-xl border-b border-outline-variant/20 shadow-sm transition-all duration-200 ease-in-out">
+<div class="flex justify-between items-center h-20 px-lg max-w-container-max mx-auto">
+<div class="font-display-lg text-headline-md md:text-display-lg font-bold text-primary">Expensa</div>
+<div class="hidden md:flex gap-xl">
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200 font-label-sm text-label-sm" href="#features">Features</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200 font-label-sm text-label-sm" href="#pricing">Pricing</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-200 font-label-sm text-label-sm" href="#faq">Documentation</a>
+</div>
+<div class="flex items-center gap-md">
+<button class="hidden md:block px-lg py-sm font-label-sm text-primary hover:scale-105 transition-transform duration-200">Login</button>
+<button class="bg-primary text-on-primary px-lg py-sm rounded-xl font-label-sm hover:scale-105 transition-transform duration-200 shadow-md">Launch App</button>
+</div>
+</div>
+</nav>
+<main class="pt-20 overflow-x-hidden">
+<!-- Hero Section -->
+<section class="relative min-h-[921px] flex items-center pt-xl">
+<div class="max-w-container-max mx-auto px-lg grid lg:grid-cols-2 gap-2xl items-center">
+<div class="reveal active">
+<div class="inline-flex items-center gap-xs bg-primary/10 text-primary px-md py-xs rounded-full mb-lg">
+<span class="material-symbols-outlined text-[18px]">verified</span>
+<span class="font-label-xs text-label-xs">v2.0 Now with AI Insights</span>
+</div>
+<h1 class="font-display-lg text-display-lg-mobile md:text-display-lg mb-md text-on-surface leading-tight">
+                        Run Your Entire Business From <span class="text-primary">One Smart Dashboard</span>
+</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-xl max-w-lg">
+                        Automate invoicing, manage real-time inventory, and get actionable AI-driven insights to scale your business effortlessly.
+                    </p>
+<div class="flex flex-wrap gap-md">
+<button class="bg-primary text-on-primary px-3xl py-md rounded-xl font-label-sm text-lg hover:scale-105 transition-all shadow-xl shadow-primary/20">Launch App</button>
+<button class="flex items-center gap-xs px-3xl py-md rounded-xl font-label-sm text-lg border border-outline-variant hover:bg-surface-container transition-all">
+<span class="material-symbols-outlined">play_circle</span> Watch Demo
+                        </button>
+</div>
+</div>
+<div class="relative reveal active delay-200">
+<div class="relative rounded-xl overflow-hidden shadow-2xl border border-white/40">
+<img class="w-full" data-alt="A ultra-high-definition dashboard interface showing beautiful mint green and white data visualizations including bar charts, a large revenue counter, and a list of recent transactions. The UI is clean, minimalist, and uses soft drop shadows to create depth on a light cream background with glassmorphism sidebar effects." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCLY4RQGme37Kgow48hp0cFsEGyI6bJl1WFDULSWNNuPx45QWLQ1nSGPyelkZ3ABlz03mpjmxp0Z6YBssMghaqt2VkXJsv6ctYaAtnu6cdDh7qsaff03skozPpBG4j9m_dSZ961aH9jKWIfw8iEy_HuffdlPd4yU8Wp9wXQglunOWq8JO77lhcVq0rHfSQgVK-NggeVtJ7edKWay4i_3dANaY5HIgEVD6lutiy7BUA5yNu8OHNrvInxHQOwgVW3ejYUyuWUjFgLf8Bk"/>
+<!-- Floating UI Elements -->
+<div class="absolute top-10 -left-10 glass-card p-lg rounded-xl shadow-xl w-64 animate-bounce-slow">
+<div class="flex justify-between items-center mb-sm">
+<span class="text-on-surface-variant font-label-xs">Current Revenue</span>
+<span class="material-symbols-outlined text-primary">trending_up</span>
+</div>
+<div class="text-headline-md font-bold text-on-surface">$52,490.00</div>
+<div class="text-primary font-label-xs mt-xs">+12.5% this month</div>
+</div>
+<div class="absolute bottom-10 -right-10 glass-card p-lg rounded-xl shadow-xl w-72 animate-float">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-lavender flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary">inventory_2</span>
+</div>
+<div>
+<div class="font-label-sm">Low Stock Alert</div>
+<div class="text-label-xs text-on-surface-variant">Organic Coffee Beans (3 left)</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Trust Section -->
+<section class="py-2xl bg-surface-container-low/30 reveal">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="flex flex-wrap justify-center gap-xl md:gap-3xl opacity-60">
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<span class="font-label-sm uppercase tracking-widest">AI Powered</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">cloud_done</span>
+<span class="font-label-sm uppercase tracking-widest">Secure Cloud Storage</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">update</span>
+<span class="font-label-sm uppercase tracking-widest">Real-Time Inventory</span>
+</div>
+<div class="flex items-center gap-xs">
+<span class="material-symbols-outlined text-primary">store</span>
+<span class="font-label-sm uppercase tracking-widest">Built for SMBs</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Problem Section -->
+<section class="py-3xl">
+<div class="max-w-container-max mx-auto px-lg text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg mb-md">Running a business shouldn't mean <br/><span class="text-primary">juggling spreadsheets.</span></h2>
+</div>
+<div class="max-w-container-max mx-auto px-lg grid md:grid-cols-2 lg:grid-cols-4 gap-lg">
+<!-- Card 1 -->
+<div class="bg-white p-lg rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-outline-variant/10 reveal">
+<div class="w-12 h-12 bg-red-50 text-red-500 rounded-lg flex items-center justify-center mb-lg">
+<span class="material-symbols-outlined">receipt_long</span>
+</div>
+<h3 class="font-headline-md mb-sm">Manual Billing</h3>
+<p class="text-on-surface-variant font-body-md">Hours spent every week creating invoices by hand and chasing late payments.</p>
+</div>
+<!-- Card 2 -->
+<div class="bg-white p-lg rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-outline-variant/10 reveal">
+<div class="w-12 h-12 bg-orange-50 text-orange-500 rounded-lg flex items-center justify-center mb-lg">
+<span class="material-symbols-outlined">payments</span>
+</div>
+<h3 class="font-headline-md mb-sm">Payment Tracking</h3>
+<p class="text-on-surface-variant font-body-md">Losing track of who owes what and missing out on critical cash flow opportunities.</p>
+</div>
+<!-- Card 3 -->
+<div class="bg-white p-lg rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-outline-variant/10 reveal">
+<div class="w-12 h-12 bg-blue-50 text-blue-500 rounded-lg flex items-center justify-center mb-lg">
+<span class="material-symbols-outlined">inventory</span>
+</div>
+<h3 class="font-headline-md mb-sm">Inventory Lag</h3>
+<p class="text-on-surface-variant font-body-md">Stock outs or overstocking because your inventory data is never up to date.</p>
+</div>
+<!-- Card 4 -->
+<div class="bg-white p-lg rounded-xl shadow-sm hover:shadow-lg transition-all duration-200 border border-outline-variant/10 reveal">
+<div class="w-12 h-12 bg-purple-50 text-purple-500 rounded-lg flex items-center justify-center mb-lg">
+<span class="material-symbols-outlined">insights</span>
+</div>
+<h3 class="font-headline-md mb-sm">No Insights</h3>
+<p class="text-on-surface-variant font-body-md">Flying blind without knowing which products are truly driving your profit margins.</p>
+</div>
+</div>
+</section>
+<!-- Features Section -->
+<section class="py-3xl bg-surface-container-lowest" id="features">
+<div class="max-w-container-max mx-auto px-lg">
+<!-- Feature 1 -->
+<div class="grid lg:grid-cols-2 gap-3xl items-center mb-3xl reveal">
+<div class="order-2 lg:order-1">
+<div class="w-14 h-14 bg-primary/10 text-primary rounded-xl flex items-center justify-center mb-xl">
+<span class="material-symbols-outlined text-3xl">electric_bolt</span>
+</div>
+<h2 class="font-display-lg text-headline-md md:text-headline-md mb-md">Smart Billing & Invoicing</h2>
+<p class="text-body-lg text-on-surface-variant mb-xl">Generate professional invoices in seconds. Our smart billing system automatically calculates taxes, applies discounts, and sends automated reminders to ensure you get paid faster.</p>
+<ul class="space-y-md">
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+                                Auto-recurring subscriptions
+                            </li>
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+                                Multi-currency support
+                            </li>
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-primary">check_circle</span>
+                                Professional templates
+                            </li>
+</ul>
+</div>
+<div class="order-1 lg:order-2">
+<img class="rounded-xl shadow-2xl" data-alt="A premium 3D render of a laptop screen showing a sleek invoice management interface. The design features soft mint green highlights, clean white cards for invoice statuses like 'Paid', 'Pending', and 'Overdue', and a smooth sidebar navigation. The scene is illuminated with warm, natural lighting in a modern home office setting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBndnUGo4QyVzjlZ4MBQZEsylmyA6zA9zsfpxeeMXGt-8ONmVhlsmKAnP_2WCUndWi3iCmlSknxlfSs6W3bKtzSPK-z_72eCjkz7-51g0LzyGN7paRgC9Ti6Pv86MxP-yc5MHtmPLrubugyK-5BXZMB2gnDy2xul-yHTtfaE1I1sWQL3n3dtX5GgLA21tM8xTwnDNAIULbhiWv_BFpdjVivXyzMcNPqV8HcPQrNolK3TqyVoYDPojX6MTbXbJyZsQsQGKRQxOCWsEN"/>
+</div>
+</div>
+<!-- Feature 2 -->
+<div class="grid lg:grid-cols-2 gap-3xl items-center reveal">
+<div>
+<img class="rounded-xl shadow-2xl" data-alt="A detailed dashboard screen showing an advanced inventory management system. It displays stock levels across multiple locations using vibrant mint and lavender accent colors. Small product thumbnail images are visible in a clean table layout, accompanied by real-time status indicators like 'In Stock', 'Low Stock', and 'Reorder'. The aesthetic is highly professional and minimalist." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCDIFvlgyAZsCWQ1LNs4kpHB6x7rpCYRvAy2pBT-aPn4pz3B8EpDPc2V3G7hlCPpcbTQf1TD2XkyNlWn5oosmBGadeU0GkV6nuQbEt-KKTxqqLRThVU_cUJFPS73gb2wZqnXRWBpJfy2Mf65tDGKibL6VE-sLJybFMIs8L9FyeyETPBsVmozPBfw4s3ld2s6P8nw0JlBMBCPWmBoCR8bbSjKvcEJnh4aFOYGjWU2vsMQnIOERxGriY1q-QtY8YF3WfXqJTy-iWl27a9"/>
+</div>
+<div class="lg:pl-xl">
+<div class="w-14 h-14 bg-lavender text-secondary rounded-xl flex items-center justify-center mb-xl">
+<span class="material-symbols-outlined text-3xl">hub</span>
+</div>
+<h2 class="font-display-lg text-headline-md md:text-headline-md mb-md">Real-Time Inventory</h2>
+<p class="text-body-lg text-on-surface-variant mb-xl">Never lose a sale to a stock-out again. Sync your inventory across all sales channels in real-time and get predictive alerts before you run low.</p>
+<ul class="space-y-md">
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+                                Low-stock push notifications
+                            </li>
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+                                Batch and expiry tracking
+                            </li>
+<li class="flex items-center gap-md text-on-surface">
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+                                Multi-warehouse management
+                            </li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<!-- How It Works -->
+<section class="py-3xl bg-background">
+<div class="max-w-container-max mx-auto px-lg text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg">The 4-Step Flow to <span class="text-primary">Growth</span></h2>
+</div>
+<div class="max-w-container-max mx-auto px-lg">
+<div class="grid md:grid-cols-4 gap-lg relative">
+<!-- Step 1 -->
+<div class="text-center group reveal">
+<div class="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-lg group-hover:bg-primary group-hover:text-white transition-all duration-300">
+<span class="material-symbols-outlined text-3xl">add_box</span>
+</div>
+<h4 class="font-headline-md mb-xs">Add Products</h4>
+<p class="text-on-surface-variant text-label-sm">Import your catalog in minutes.</p>
+</div>
+<!-- Step 2 -->
+<div class="text-center group reveal delay-100">
+<div class="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-lg group-hover:bg-primary group-hover:text-white transition-all duration-300">
+<span class="material-symbols-outlined text-3xl">description</span>
+</div>
+<h4 class="font-headline-md mb-xs">Create Invoice</h4>
+<p class="text-on-surface-variant text-label-sm">Draft professional bills on the fly.</p>
+</div>
+<!-- Step 3 -->
+<div class="text-center group reveal delay-200">
+<div class="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-lg group-hover:bg-primary group-hover:text-white transition-all duration-300">
+<span class="material-symbols-outlined text-3xl">account_balance_wallet</span>
+</div>
+<h4 class="font-headline-md mb-xs">Receive Payment</h4>
+<p class="text-on-surface-variant text-label-sm">Securely collect via 20+ methods.</p>
+</div>
+<!-- Step 4 -->
+<div class="text-center group reveal delay-300">
+<div class="w-20 h-20 bg-white rounded-full shadow-md flex items-center justify-center mx-auto mb-lg group-hover:bg-primary group-hover:text-white transition-all duration-300">
+<span class="material-symbols-outlined text-3xl">show_chart</span>
+</div>
+<h4 class="font-headline-md mb-xs">Track Growth</h4>
+<p class="text-on-surface-variant text-label-sm">Watch your business scale with AI.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Dashboard Preview / Bento Grid -->
+<section class="py-3xl bg-surface-container-high/20 overflow-hidden">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="grid grid-cols-12 gap-lg h-[600px] reveal">
+<div class="col-span-12 md:col-span-8 bg-white rounded-xl shadow-xl p-xl overflow-hidden relative border border-outline-variant/10">
+<div class="flex justify-between items-center mb-xl">
+<h3 class="font-headline-md">Advanced Analytics</h3>
+<div class="flex gap-xs">
+<span class="w-3 h-3 rounded-full bg-red-400"></span>
+<span class="w-3 h-3 rounded-full bg-yellow-400"></span>
+<span class="w-3 h-3 rounded-full bg-green-400"></span>
+</div>
+</div>
+<img class="w-full rounded-lg" data-alt="A sophisticated data visualization dashboard with interactive line graphs showing sales trends over 12 months. The color scheme is a professional mix of mint green and navy blue. The layout is spacious with large font sizes and subtle grid lines, creating a high-end financial software feeling." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3Rn8awZZs_w9CJJrSdNgdPmjQEXpjjhalTOo-fVWBPbvormvzc5NDCNZ_mfvXcPzlqiOYL1hrHcy_nYx8vW4270PoOXkDhUJvWILAW4i4EnZTA8HQQ1URju0092skB-lpPrPNnJMmcA9UzDIgaEGO1Vyg4bmBmRgcQJ_d8HKJONwrbvFIcUCDv4jWz_-hasJhTdQ1ki0D5hO1rqdpVZfSlakSxrsL49biJgmOeLLGpc7t5O35yVJJzrKkJIpRf6ribvozYS46UG1d"/>
+</div>
+<div class="col-span-12 md:col-span-4 grid grid-rows-2 gap-lg">
+<div class="bg-lavender/50 rounded-xl p-lg border border-outline-variant/10 shadow-lg flex flex-col justify-between">
+<span class="material-symbols-outlined text-secondary text-4xl">auto_awesome</span>
+<div>
+<h4 class="font-headline-md mb-xs">AI Insights</h4>
+<p class="text-on-surface-variant text-label-sm">"Your coffee sales peaked on Tuesday morning. Consider a morning promotion."</p>
+</div>
+</div>
+<div class="bg-primary/5 rounded-xl p-lg border border-outline-variant/10 shadow-lg flex flex-col justify-between">
+<span class="material-symbols-outlined text-primary text-4xl">inventory_2</span>
+<div>
+<h4 class="font-headline-md mb-xs">Smart Stock</h4>
+<p class="text-on-surface-variant text-label-sm">Automatically reordering top-selling items based on velocity.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Benefits -->
+<section class="py-3xl">
+<div class="max-w-container-max mx-auto px-lg grid md:grid-cols-2 lg:grid-cols-4 gap-xl">
+<div class="p-xl bg-white rounded-xl shadow-sm border border-outline-variant/10 reveal">
+<h3 class="font-headline-md text-primary mb-md">Faster Billing</h3>
+<p class="text-on-surface-variant">Reduce manual effort by 70% with automated invoicing cycles.</p>
+</div>
+<div class="p-xl bg-white rounded-xl shadow-sm border border-outline-variant/10 reveal delay-100">
+<h3 class="font-headline-md text-secondary mb-md">Smarter Stock</h3>
+<p class="text-on-surface-variant">Prevent overstocking and free up cash flow for what matters.</p>
+</div>
+<div class="p-xl bg-white rounded-xl shadow-sm border border-outline-variant/10 reveal delay-200">
+<h3 class="font-headline-md text-primary mb-md">AI Guidance</h3>
+<p class="text-on-surface-variant">Get a virtual CFO pointing out growth opportunities 24/7.</p>
+</div>
+<div class="p-xl bg-white rounded-xl shadow-sm border border-outline-variant/10 reveal delay-300">
+<h3 class="font-headline-md text-secondary mb-md">Better Data</h3>
+<p class="text-on-surface-variant">Accurate reports that make tax season a total breeze.</p>
+</div>
+</div>
+</section>
+<!-- Who Is It For -->
+<section class="py-3xl bg-surface-container-low">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg">Built for Every Business</h2>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-lg">
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">shopping_cart</span>
+<div class="font-headline-md">Grocery Stores</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">checkroom</span>
+<div class="font-headline-md">Retail Shops</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">medical_services</span>
+<div class="font-headline-md">Pharmacies</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">restaurant</span>
+<div class="font-headline-md">Restaurants</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">spa</span>
+<div class="font-headline-md">Salons & Spas</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">home_repair_service</span>
+<div class="font-headline-md">Service Providers</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">school</span>
+<div class="font-headline-md">Education</div>
+</div>
+<div class="bg-white p-lg rounded-xl text-center shadow-sm reveal">
+<span class="material-symbols-outlined text-primary text-4xl mb-md">more_horiz</span>
+<div class="font-headline-md">And More...</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Testimonials -->
+<section class="py-3xl">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="grid md:grid-cols-3 gap-xl">
+<!-- Testimonial 1 -->
+<div class="bg-white p-xl rounded-xl shadow-md border border-outline-variant/10 reveal">
+<div class="flex text-yellow-400 mb-md">
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+</div>
+<p class="text-body-lg italic mb-xl">"Expensa changed how I look at my business. I finally know exactly where my money is going."</p>
+<div class="flex items-center gap-md">
+<img alt="Avatar" class="w-12 h-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRLJLKHi_VVGwlog-MhWFwVnboxlw64KbbJLQx-tcvKWIWLz5U6JyBGcB1JzECHo6wp9cMjUoVq5mrzETAgYzurcC7wcZR8mo-eewrR8YAEZ0BdbNqlLTO62-d4D4_se0ag8TLrU6rnXyOdn5zkpFwIKmUoALkbeBeqxi5tASMMhOIgt6A9dNSCaSpx6WVnwStvaERu-l_iLOI0DLNvP5gGheaWBt3mEjjTEuz_woeipitQZHTg8cfWNC9dgP9c6UmBE27U76qDCae"/>
+<div>
+<div class="font-bold">Sarah Jenkins</div>
+<div class="text-label-sm text-on-surface-variant">Owner, The Green Grocer</div>
+</div>
+</div>
+</div>
+<!-- Testimonial 2 -->
+<div class="bg-white p-xl rounded-xl shadow-md border border-outline-variant/10 reveal delay-100">
+<div class="flex text-yellow-400 mb-md">
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+</div>
+<p class="text-body-lg italic mb-xl">"The AI insights predicted a stock shortage before it happened. Saved me thousands in revenue."</p>
+<div class="flex items-center gap-md">
+<img alt="Avatar" class="w-12 h-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAggI2mR-lnFXjMlOqo8tYf7nCHj47N9KlQnrNOZ_GlnjdoF3ZoA9h0dzWwNd9ywWpnqpv9zkXKrKrP507J4ZaS5763f_tFtYoiD4An-bmUFgTmKWGvh-YHRG8c59wgf1TDr-oqBq_e2-juUnaI2VRgrESoB-vaIUuFwnFDQhlYwDS0KOX_z_2NHBkMcRZhf8tIZuPWItM9OOLQ1gvQDCQ2Fs-gYK5F5g3oPXBvgz-919pm79_1KREcLUP8d1RxmCi_SWIJ_Mk52KEN"/>
+<div>
+<div class="font-bold">Mark Chen</div>
+<div class="text-label-sm text-on-surface-variant">CEO, TechRetailer</div>
+</div>
+</div>
+</div>
+<!-- Testimonial 3 -->
+<div class="bg-white p-xl rounded-xl shadow-md border border-outline-variant/10 reveal delay-200">
+<div class="flex text-yellow-400 mb-md">
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+<span class="material-symbols-outlined">star</span>
+</div>
+<p class="text-body-lg italic mb-xl">"Setup took 10 minutes. The interface is so clean, my team didn't even need training."</p>
+<div class="flex items-center gap-md">
+<img alt="Avatar" class="w-12 h-12 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPsn-3L6zCStoDFIm10yGfgpCdrYc1TxZgd7sPiY4M1toFAjZijJRb-0nllmy4k3ASoz6MfvPfjR1jEoYYCmHV9P6pwKvlIQLxQxXjouPnZ-YZIjdaxRh-0k78qZ3FpiYVuZuFuK3CkuWgssL_q1LlQd0MmakHEeQH1L9UnszqAfNfRicIO7u6b5oMXAKXSJXbA0HbQB3PMafzA1foBEWdP2aXg7Eq_Zs2IUqy0GQJyVYHYCUk7BdFx_-oRP3blYgMnq1REptu1Qo6"/>
+<div>
+<div class="font-bold">Julia Roberts</div>
+<div class="text-label-sm text-on-surface-variant">Manager, Bloom Florals</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Pricing Section -->
+<section class="py-3xl bg-surface-container-lowest" id="pricing">
+<div class="max-w-container-max mx-auto px-lg">
+<div class="text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg mb-md">Simple, Transparent Pricing</h2>
+<p class="text-on-surface-variant text-body-lg">Scale with plans that grow with your business.</p>
+</div>
+<div class="grid lg:grid-cols-3 gap-xl">
+<!-- Starter -->
+<div class="p-xl rounded-xl border border-outline-variant/20 bg-white reveal">
+<div class="font-headline-md mb-md">Starter</div>
+<div class="mb-xl">
+<span class="text-display-lg-mobile font-bold">$29</span>
+<span class="text-on-surface-variant">/month</span>
+</div>
+<ul class="space-y-md mb-2xl">
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Up to 500 invoices/mo</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Basic Inventory</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> 2 User Accounts</li>
+<li class="flex items-center gap-md text-on-surface-variant/40"><span class="material-symbols-outlined">close</span> Advanced AI Insights</li>
+</ul>
+<button class="w-full py-md rounded-xl border border-primary text-primary font-bold hover:bg-primary/5 transition-colors">Choose Starter</button>
+</div>
+<!-- Business (Highlighted) -->
+<div class="p-xl rounded-xl border-2 border-primary bg-white shadow-2xl relative scale-105 reveal z-10">
+<div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-lg py-xs rounded-full font-label-xs">MOST POPULAR</div>
+<div class="font-headline-md mb-md">Business</div>
+<div class="mb-xl">
+<span class="text-display-lg-mobile font-bold">$79</span>
+<span class="text-on-surface-variant">/month</span>
+</div>
+<ul class="space-y-md mb-2xl">
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Unlimited invoices</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Multi-location Inventory</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> 10 User Accounts</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> AI Business Coaching</li>
+</ul>
+<button class="w-full py-md rounded-xl bg-primary text-on-primary font-bold hover:opacity-90 transition-opacity shadow-lg shadow-primary/30">Choose Business</button>
+</div>
+<!-- Enterprise -->
+<div class="p-xl rounded-xl border border-outline-variant/20 bg-white reveal">
+<div class="font-headline-md mb-md">Enterprise</div>
+<div class="mb-xl">
+<span class="text-display-lg-mobile font-bold">$199</span>
+<span class="text-on-surface-variant">/month</span>
+</div>
+<ul class="space-y-md mb-2xl">
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Custom API Integration</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Dedicated Account Manager</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Unlimited Everything</li>
+<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> 24/7 Priority Support</li>
+</ul>
+<button class="w-full py-md rounded-xl border border-primary text-primary font-bold hover:bg-primary/5 transition-colors">Contact Sales</button>
+</div>
+</div>
+</div>
+</section>
+<!-- FAQ -->
+<section class="py-3xl" id="faq">
+<div class="max-w-3xl mx-auto px-lg">
+<div class="text-center mb-2xl reveal">
+<h2 class="font-display-lg text-headline-md md:text-display-lg">Frequently Asked Questions</h2>
+</div>
+<div class="space-y-md">
+<div class="bg-white rounded-xl border border-outline-variant/10 overflow-hidden reveal">
+<button class="w-full p-lg text-left font-headline-md flex justify-between items-center group" onclick="toggleFaq(this)">
+                            Is my business data secure?
+                            <span class="material-symbols-outlined transition-transform duration-300 group-[.active]:rotate-180">expand_more</span>
+</button>
+<div class="px-lg pb-lg text-on-surface-variant hidden">
+                            Yes, we use bank-level AES-256 encryption for all data storage and SSL/TLS for data in transit. Your business data is completely isolated and secure.
+                        </div>
+</div>
+<div class="bg-white rounded-xl border border-outline-variant/10 overflow-hidden reveal delay-100">
+<button class="w-full p-lg text-left font-headline-md flex justify-between items-center group" onclick="toggleFaq(this)">
+                            Can I import my existing product list?
+                            <span class="material-symbols-outlined transition-transform duration-300 group-[.active]:rotate-180">expand_more</span>
+</button>
+<div class="px-lg pb-lg text-on-surface-variant hidden">
+                            Absolutely. You can import your catalog via CSV, Excel, or directly sync from Shopify and WooCommerce in a few clicks.
+                        </div>
+</div>
+<div class="bg-white rounded-xl border border-outline-variant/10 overflow-hidden reveal delay-200">
+<button class="w-full p-lg text-left font-headline-md flex justify-between items-center group" onclick="toggleFaq(this)">
+                            Does it work offline?
+                            <span class="material-symbols-outlined transition-transform duration-300 group-[.active]:rotate-180">expand_more</span>
+</button>
+<div class="px-lg pb-lg text-on-surface-variant hidden">
+                            Our mobile app allows you to create invoices and manage stock offline. The data will automatically sync once you're back online.
+                        </div>
+</div>
+</div>
+</div>
+</section>
+<!-- Final CTA -->
+<section class="py-3xl px-lg">
+<div class="max-w-container-max mx-auto bg-primary rounded-3xl p-3xl text-center text-on-primary relative overflow-hidden reveal">
+<!-- Background Decoration -->
+<div class="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+<div class="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full -ml-20 -mb-20 blur-3xl"></div>
+<h2 class="font-display-lg text-display-lg-mobile md:text-display-lg mb-lg relative z-10">Ready to simplify your business?</h2>
+<p class="text-body-lg mb-2xl opacity-90 max-w-2xl mx-auto relative z-10">Join over 10,000+ business owners who trust Expensa to manage their daily operations.</p>
+<div class="flex flex-wrap justify-center gap-md relative z-10">
+<button class="bg-white text-primary px-3xl py-md rounded-xl font-bold text-lg hover:scale-105 transition-all">Get Started Free</button>
+<button class="border border-white/40 bg-white/10 backdrop-blur-md px-3xl py-md rounded-xl font-bold text-lg hover:bg-white/20 transition-all">Request Demo</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest dark:bg-inverse-surface border-t border-outline-variant/10">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-gutter max-w-container-max mx-auto px-lg py-2xl">
+<div class="col-span-2 md:col-span-1">
+<div class="font-headline-md font-bold text-primary mb-lg">Expensa</div>
+<p class="text-on-surface-variant font-label-sm max-w-xs mb-lg">The world's most intuitive platform for growing businesses.</p>
+<div class="flex gap-md">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary">qr_code_2</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary">language</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary">share</span>
+</div>
+</div>
+<div>
+<h4 class="font-bold mb-lg">Product</h4>
+<ul class="space-y-md font-label-sm text-on-surface-variant">
+<li class="hover:text-primary cursor-pointer hover:underline">Features</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Integrations</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Pricing</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Mobile App</li>
+</ul>
+</div>
+<div>
+<h4 class="font-bold mb-lg">Company</h4>
+<ul class="space-y-md font-label-sm text-on-surface-variant">
+<li class="hover:text-primary cursor-pointer hover:underline">About Us</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Careers</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Blog</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Contact</li>
+</ul>
+</div>
+<div>
+<h4 class="font-bold mb-lg">Support</h4>
+<ul class="space-y-md font-label-sm text-on-surface-variant">
+<li class="hover:text-primary cursor-pointer hover:underline">Help Center</li>
+<li class="hover:text-primary cursor-pointer hover:underline">API Docs</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Privacy Policy</li>
+<li class="hover:text-primary cursor-pointer hover:underline">Terms</li>
+</ul>
+</div>
+</div>
+<div class="max-w-container-max mx-auto px-lg py-lg border-t border-outline-variant/10 text-center text-label-sm text-on-surface-variant">
+            © 2024 Expensa SaaS. All rights reserved.
+        </div>
+</footer>
+<script>
+        // Reveal animation on scroll
+        const reveals = document.querySelectorAll('.reveal');
+        const revealHandler = () => {
+            const windowHeight = window.innerHeight;
+            reveals.forEach(reveal => {
+                const revealTop = reveal.getBoundingClientRect().top;
+                if (revealTop < windowHeight - 100) {
+                    reveal.classList.add('active');
+                }
+            });
+        };
+        window.addEventListener('scroll', revealHandler);
+        window.addEventListener('load', revealHandler);
+
+        // FAQ Toggle
+        function toggleFaq(button) {
+            const content = button.nextElementSibling;
+            const isOpen = button.classList.contains('active');
+            
+            // Close all
+            document.querySelectorAll('.faq-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.faq-btn').forEach(el => el.classList.remove('active'));
+
+            if (!isOpen) {
+                content.classList.remove('hidden');
+                button.classList.add('active');
+            } else {
+                content.classList.add('hidden');
+                button.classList.remove('active');
+            }
+        }
+
+        // Float animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes float {
+                0% { transform: translateY(0px); }
+                50% { transform: translateY(-15px); }
+                100% { transform: translateY(0px); }
+            }
+            @keyframes bounce-slow {
+                0%, 100% { transform: translateY(-5%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+                50% { transform: translateY(0); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+            }
+            .animate-float {
+                animation: float 5s ease-in-out infinite;
+            }
+            .animate-bounce-slow {
+                animation: bounce-slow 4s ease-in-out infinite;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body></html>
