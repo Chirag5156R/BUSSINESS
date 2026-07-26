@@ -2,4 +2,9 @@ fastapi
 uvicorn
 requests
 pydantic
+<<<<<<< HEAD
 psycopg2-binary
+=======
+psycopg2-binary
+vercel.json
+>>>>>>> afb11d0f65df9f7beed6d16bbbfd78aedd945774
