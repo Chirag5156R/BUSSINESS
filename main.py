@@ -14,7 +14,7 @@ import psycopg2
 import psycopg2.extras
 
 import os
-import sqlite3
+
 import datetime
 import hashlib
 import secrets
