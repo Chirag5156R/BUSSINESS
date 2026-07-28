@@ -2,11 +2,13 @@
 Ledgerly API — FastAPI backend for the billing / sales / stock / customers app.
 
 Multi-tenant: every business owner registers/logs in, and every row of data
-(customers, products, bills, payments) is scoped to their account. One shared
-SQLite database, full logical isolation via user_id + auth tokens.
+(customers, products, bills, payments) is scoped to their account. Postgres
+database (works on serverless hosts like Vercel, unlike local SQLite), full
+logical isolation via user_id + auth tokens.
 
 Run with:
     pip install -r requirements.txt
+    export DATABASE_URL=postgres://...   # e.g. from Neon / Vercel Postgres / Supabase
     export GROQ_API_KEY=gsk_...          # get one free at https://console.groq.com
     uvicorn main:app --reload --port 8000
 """
@@ -14,7 +16,7 @@ import psycopg2
 import psycopg2.extras
 
 import os
-
+import json
 import datetime
 import hashlib
 import secrets
@@ -41,6 +43,7 @@ def get_connection():
         yield conn
     finally:
         conn.close()
+
 
 def init_db():
     with get_connection() as conn:
@@ -117,6 +120,16 @@ def init_db():
                 payment_date TIMESTAMP DEFAULT NOW()
             )
         """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS daily_briefs (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                brief_date DATE NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(user_id, brief_date)
+            )
+        """)
         conn.commit()
 
 
@@ -146,12 +159,12 @@ def products_with_image_data(products: List[dict]) -> List[dict]:
 # Auth / users
 # ---------------------------------------------------------------------------
 
-
 def hash_password(password: str, salt: Optional[str] = None) -> tuple:
     if salt is None:
         salt = secrets.token_hex(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200_000)
     return digest.hex(), salt
+
 
 def db_create_user(business_name, email, password):
     password_hash, salt = hash_password(password)
@@ -542,6 +555,267 @@ def db_get_home_summary(user_id):
             "total_bills": total_bills,
             "total_due": total_due,
         }
+
+
+# ---------------------------------------------------------------------------
+# Daily AI brief (cached once per user per calendar day)
+# ---------------------------------------------------------------------------
+
+def db_get_daily_brief(user_id, brief_date):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT content, created_at FROM daily_briefs WHERE user_id = %s AND brief_date = %s",
+            (user_id, brief_date),
+        )
+        return row_to_dict(cur.fetchone())
+
+
+def db_save_daily_brief(user_id, brief_date, content):
+    with get_connection() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO daily_briefs (user_id, brief_date, content) VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, brief_date) DO UPDATE SET content = EXCLUDED.content,
+                created_at = NOW()
+        """, (user_id, brief_date, content))
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Demo account (admin@gmail.com / admin1234)
+#
+# IMPORTANT: the demo account never touches Postgres. It is not a row in the
+# `users` table and it creates no rows in `customers`/`products`/`bills`/etc.
+# All of its data comes from the read-only demo_data.json file next to this
+# script, and is served through the demo_* functions below. This keeps the
+# real database — and any real users' data in it — completely untouched.
+# ---------------------------------------------------------------------------
+
+DEMO_USER_ID = -1  # sentinel id, never a real row in the users table
+DEMO_EMAIL = "admin@gmail.com"
+DEMO_PASSWORD = "admin1234"
+DEMO_DATA_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "demo_data.json")
+
+# Demo login sessions live only in memory (never in the `sessions` table, which
+# has a foreign key to `users` and isn't meant to hold a fake user id).
+DEMO_SESSIONS: dict = {}          # token -> expiry datetime
+
+_demo_data_cache = None
+
+
+def load_demo_data() -> dict:
+    global _demo_data_cache
+    if _demo_data_cache is None:
+        with open(DEMO_DATA_PATH, "r", encoding="utf-8") as f:
+            _demo_data_cache = json.load(f)
+    return _demo_data_cache
+
+
+def is_demo(user_id: int) -> bool:
+    return user_id == DEMO_USER_ID
+
+
+def _demo_resolved_bills() -> List[dict]:
+    """Turns each demo bill's `days_ago` into a real date relative to *right now*,
+    so the demo always looks like a live shop with recent activity — no matter
+    when someone opens it."""
+    data = load_demo_data()
+    now = datetime.datetime.now()
+    customers_by_id = {c["id"]: c for c in data["customers"]}
+    resolved = []
+    for b in data["bills"]:
+        bill_dt = now - datetime.timedelta(days=b["days_ago"])
+        cust = customers_by_id.get(b["customer_id"]) if b["customer_id"] is not None else None
+        resolved.append({
+            **b,
+            "bill_date": bill_dt.strftime("%Y-%m-%d %H:%M:%S"),
+            "customer_name": cust["name"] if cust else None,
+            "customer_mobile": cust["mobile"] if cust else None,
+        })
+    return resolved
+
+
+def demo_get_all_customers() -> List[dict]:
+    return sorted([dict(c) for c in load_demo_data()["customers"]], key=lambda c: c["name"])
+
+
+def demo_get_all_products() -> List[dict]:
+    return sorted([dict(p) for p in load_demo_data()["products"]], key=lambda p: p["name"])
+
+
+def demo_get_low_stock_products() -> List[dict]:
+    low = [p for p in demo_get_all_products() if p["stock_qty"] <= p["reorder_level"]]
+    return sorted(low, key=lambda p: p["stock_qty"])
+
+
+def demo_get_outstanding_balances() -> List[dict]:
+    totals = {}
+    for b in _demo_resolved_bills():
+        if b["customer_id"] is not None and b["balance_due"] > 0:
+            cid = b["customer_id"]
+            row = totals.setdefault(cid, {"id": cid, "name": b["customer_name"],
+                                           "mobile": b["customer_mobile"], "total_due": 0.0, "bill_count": 0})
+            row["total_due"] = round(row["total_due"] + b["balance_due"], 2)
+            row["bill_count"] += 1
+    return sorted(totals.values(), key=lambda o: -o["total_due"])
+
+
+def demo_get_customer_payment_history() -> List[dict]:
+    stats = {
+        c["id"]: {"id": c["id"], "name": c["name"], "mobile": c["mobile"], "total_bills": 0,
+                  "total_billed": 0.0, "total_paid": 0.0, "total_due": 0.0, "unpaid_bill_count": 0}
+        for c in load_demo_data()["customers"]
+    }
+    for b in _demo_resolved_bills():
+        if b["customer_id"] is None:
+            continue
+        s = stats[b["customer_id"]]
+        s["total_bills"] += 1
+        s["total_billed"] = round(s["total_billed"] + b["total_amount"], 2)
+        s["total_paid"] = round(s["total_paid"] + b["paid_amount"], 2)
+        s["total_due"] = round(s["total_due"] + b["balance_due"], 2)
+        if b["balance_due"] > 0:
+            s["unpaid_bill_count"] += 1
+    return sorted([s for s in stats.values() if s["total_bills"] > 0], key=lambda s: -s["total_due"])
+
+
+def demo_get_bills(start_date=None, end_date=None, customer_id=None) -> List[dict]:
+    def in_range(b):
+        d = b["bill_date"][:10]
+        if start_date and d < start_date:
+            return False
+        if end_date and d > end_date:
+            return False
+        if customer_id and b["customer_id"] != customer_id:
+            return False
+        return True
+
+    bills = [b for b in _demo_resolved_bills() if in_range(b)]
+    bills.sort(key=lambda b: b["bill_date"], reverse=True)
+    return [{k: v for k, v in b.items() if k not in ("items", "days_ago")} for b in bills]
+
+
+def demo_get_bill_items(bill_id: int) -> List[dict]:
+    data = load_demo_data()
+    products_by_id = {p["id"]: p for p in data["products"]}
+    for b in data["bills"]:
+        if b["id"] == bill_id:
+            return [{**i, "product_name": products_by_id.get(i["product_id"], {}).get("name", "Unknown")}
+                    for i in b["items"]]
+    raise KeyError("bill not found")
+
+
+def demo_get_sales_summary(start_date: str, end_date: str) -> dict:
+    bills = demo_get_bills(start_date, end_date)
+    return {
+        "revenue": round(sum(b["total_amount"] for b in bills), 2),
+        "collected": round(sum(b["paid_amount"] for b in bills), 2),
+        "outstanding": round(sum(b["balance_due"] for b in bills), 2),
+        "bill_count": len(bills),
+    }
+
+
+def demo_get_profit_loss(start_date: str, end_date: str) -> dict:
+    now = datetime.datetime.now()
+    revenue = cost = 0.0
+    for b in load_demo_data()["bills"]:
+        d = (now - datetime.timedelta(days=b["days_ago"])).strftime("%Y-%m-%d")
+        if d < start_date or d > end_date:
+            continue
+        for i in b["items"]:
+            revenue += i["quantity"] * i["price_each"]
+            cost += i["quantity"] * i["cost_each"]
+    return {"revenue": round(revenue, 2), "cost": round(cost, 2), "profit": round(revenue - cost, 2)}
+
+
+def demo_get_product_sales_ranking(start_date: str, end_date: str) -> List[dict]:
+    now = datetime.datetime.now()
+    data = load_demo_data()
+    sold = {p["id"]: {"id": p["id"], "name": p["name"], "units_sold": 0, "revenue": 0.0} for p in data["products"]}
+    for b in data["bills"]:
+        d = (now - datetime.timedelta(days=b["days_ago"])).strftime("%Y-%m-%d")
+        if d < start_date or d > end_date:
+            continue
+        for i in b["items"]:
+            row = sold[i["product_id"]]
+            row["units_sold"] += i["quantity"]
+            row["revenue"] = round(row["revenue"] + i["quantity"] * i["price_each"], 2)
+    return sorted(sold.values(), key=lambda p: -p["units_sold"])
+
+
+def demo_get_home_summary() -> dict:
+    data = load_demo_data()
+    return {
+        "total_customers": len(data["customers"]),
+        "total_products": len(data["products"]),
+        "total_bills": len(data["bills"]),
+        "total_due": round(sum(b["balance_due"] for b in data["bills"]), 2),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Thin dispatchers: real users hit Postgres as before, the demo user reads the
+# JSON file. Every endpoint and AI helper below should go through these
+# instead of calling db_* / demo_* directly, so nothing has to branch twice.
+# ---------------------------------------------------------------------------
+
+def get_all_customers(user_id):
+    return demo_get_all_customers() if is_demo(user_id) else db_get_all_customers(user_id)
+
+
+def get_outstanding_balances(user_id):
+    return demo_get_outstanding_balances() if is_demo(user_id) else db_get_outstanding_balances(user_id)
+
+
+def get_customer_payment_history(user_id):
+    return demo_get_customer_payment_history() if is_demo(user_id) else db_get_customer_payment_history(user_id)
+
+
+def get_all_products(user_id):
+    return demo_get_all_products() if is_demo(user_id) else products_with_image_data(db_get_all_products(user_id))
+
+
+def get_low_stock_products(user_id):
+    return demo_get_low_stock_products() if is_demo(user_id) else products_with_image_data(db_get_low_stock_products(user_id))
+
+
+def get_bills(user_id, start_date=None, end_date=None, customer_id=None):
+    if is_demo(user_id):
+        return demo_get_bills(start_date, end_date, customer_id)
+    return db_get_bills(user_id, start_date, end_date, customer_id)
+
+
+def get_bill_items(user_id, bill_id):
+    return demo_get_bill_items(bill_id) if is_demo(user_id) else db_get_bill_items(user_id, bill_id)
+
+
+def get_sales_summary(user_id, start_date, end_date):
+    return demo_get_sales_summary(start_date, end_date) if is_demo(user_id) else db_get_sales_summary(user_id, start_date, end_date)
+
+
+def get_profit_loss(user_id, start_date, end_date):
+    return demo_get_profit_loss(start_date, end_date) if is_demo(user_id) else db_get_profit_loss(user_id, start_date, end_date)
+
+
+def get_product_sales_ranking(user_id, start_date, end_date):
+    return demo_get_product_sales_ranking(start_date, end_date) if is_demo(user_id) else db_get_product_sales_ranking(user_id, start_date, end_date)
+
+
+def get_home_summary(user_id):
+    return demo_get_home_summary() if is_demo(user_id) else db_get_home_summary(user_id)
+
+
+def block_if_demo(user_id):
+    """Mutating endpoints call this first: the demo account is shared and read-only,
+    so writes are rejected with a friendly message instead of touching anything."""
+    if is_demo(user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="This is a shared read-only demo account. Register your own free account to add data.",
+        )
+
+
 # ===========================================================================
 # SECTION 2: AI HELPER — Groq API calls
 # ===========================================================================
@@ -630,12 +904,47 @@ def analyze_stock(low_stock_products, all_products):
     return call_groq(system_prompt, user_prompt)
 
 
+def generate_daily_brief(user_id: int) -> str:
+    """One short, digestible AI brief for the day: today's sales so far, how the week is
+    trending, what needs reordering, and which customers to chase for payment."""
+    today = datetime.date.today()
+    week_start = today - datetime.timedelta(days=6)
+
+    today_stats = get_profit_loss(user_id, str(today), str(today))
+    week_stats = get_profit_loss(user_id, str(week_start), str(today))
+    low_stock = get_low_stock_products(user_id)
+    outstanding = get_outstanding_balances(user_id)
+
+    total_due = sum(o["total_due"] or 0 for o in outstanding)
+    top_due = sorted(outstanding, key=lambda o: -(o["total_due"] or 0))[:3]
+
+    low_str = ", ".join(
+        f"{p['name']} (stock {p['stock_qty']}, reorder level {p['reorder_level']})" for p in low_stock
+    ) or "none — stock levels look healthy"
+    due_str = ", ".join(f"{o['name']} owes {o['total_due']:.2f}" for o in top_due) or "none"
+
+    system_prompt = (
+        "You are Ledgerly's AI assistant writing a short daily brief for a small shop owner, "
+        "delivered first thing in the morning. Be warm, direct, and practical. Reply with 4-6 short "
+        "bullet points covering: today's sales so far, how the week is trending, any urgent stock to "
+        "reorder, and any customer payments worth chasing. End with one short, motivating line."
+    )
+    user_prompt = (
+        f"Today's revenue so far: ₹{today_stats['revenue']:.2f}, profit: ₹{today_stats['profit']:.2f}.\n"
+        f"Last 7 days revenue: ₹{week_stats['revenue']:.2f}, profit: ₹{week_stats['profit']:.2f}.\n"
+        f"Products at or below reorder level: {low_str}.\n"
+        f"Total outstanding balance owed by customers: ₹{total_due:.2f}. Customers who owe the most: {due_str}.\n\n"
+        "Write today's brief."
+    )
+    return call_groq(system_prompt, user_prompt, max_tokens=400)
+
+
 def ai_coach_reply(user_id: int, message: str, history: list):
     """Freeform AI Coach chat, grounded in the shop's live numbers."""
     today = datetime.date.today()
     month_start = today.replace(day=1)
-    revenue, cost, profit = db_get_profit_loss(user_id, str(month_start), str(today)).values()
-    home = db_get_home_summary(user_id)
+    revenue, cost, profit = get_profit_loss(user_id, str(month_start), str(today)).values()
+    home = get_home_summary(user_id)
 
     system_prompt = (
         "You are Ledgerly's AI Financial Coach for a small retail shop owner. You have their live "
@@ -689,6 +998,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     init_db()
+    load_demo_data()  # fail fast at boot if demo_data.json is missing/invalid
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -712,6 +1022,15 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not logged in.")
     token = authorization[len("Bearer "):].strip()
+
+    expiry = DEMO_SESSIONS.get(token)
+    if expiry is not None:
+        if expiry < datetime.datetime.now():
+            DEMO_SESSIONS.pop(token, None)
+        else:
+            demo = load_demo_data()
+            return {"id": DEMO_USER_ID, "business_name": demo["business_name"], "email": DEMO_EMAIL}
+
     user = db_get_session_user(token)
     if user is None:
         raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
@@ -737,10 +1056,9 @@ class RegisterRequest(BaseModel):
             raise ValueError("Enter a valid email address.")
         return v
 
-email="xyz@gmail.com"
-password="admin123"
+
 class LoginRequest(BaseModel):
-    email:str
+    email: str
     password: str
 
 
@@ -799,6 +1117,8 @@ class CoachMessage(BaseModel):
 
 @app.post("/api/auth/register", status_code=201)
 def register(payload: RegisterRequest):
+    if str(payload.email).strip().lower() == DEMO_EMAIL:
+        raise HTTPException(status_code=409, detail="This email is reserved for the demo account.")
     user_id = db_create_user(payload.business_name.strip(), str(payload.email), payload.password)
     if user_id is None:
         raise HTTPException(status_code=409, detail="An account with this email already exists.")
@@ -808,6 +1128,13 @@ def register(payload: RegisterRequest):
 
 @app.post("/api/auth/login")
 def login(payload: LoginRequest):
+    if str(payload.email).strip().lower() == DEMO_EMAIL and payload.password == DEMO_PASSWORD:
+        # Demo sessions are purely in-memory — no row is ever written to Postgres.
+        token = secrets.token_urlsafe(32)
+        DEMO_SESSIONS[token] = datetime.datetime.now() + datetime.timedelta(days=SESSION_LIFETIME_DAYS)
+        demo = load_demo_data()
+        return {"token": token, "business_name": demo["business_name"], "email": DEMO_EMAIL}
+
     user = db_verify_login(str(payload.email), payload.password)
     if user is None:
         raise HTTPException(status_code=401, detail="Incorrect email or password.")
@@ -818,7 +1145,9 @@ def login(payload: LoginRequest):
 @app.post("/api/auth/logout")
 def logout(authorization: Optional[str] = Header(None)):
     if authorization and authorization.startswith("Bearer "):
-        db_delete_session(authorization[len("Bearer "):].strip())
+        token = authorization[len("Bearer "):].strip()
+        DEMO_SESSIONS.pop(token, None)
+        db_delete_session(token)
     return {"ok": True}
 
 
@@ -831,18 +1160,19 @@ def me(user: dict = Depends(get_current_user)):
 
 @app.get("/api/summary")
 def get_summary(user_id: int = Depends(uid)):
-    return db_get_home_summary(user_id)
+    return get_home_summary(user_id)
 
 
 # ---------- Customers ----------
 
 @app.get("/api/customers")
 def list_customers(user_id: int = Depends(uid)):
-    return db_get_all_customers(user_id)
+    return get_all_customers(user_id)
 
 
 @app.post("/api/customers", status_code=201)
 def create_customer(payload: CustomerCreate, user_id: int = Depends(uid)):
+    block_if_demo(user_id)
     cid = db_add_customer(user_id, payload.name.strip(), payload.mobile.strip())
     if cid is None:
         raise HTTPException(status_code=409, detail="A customer with this mobile number already exists.")
@@ -851,28 +1181,29 @@ def create_customer(payload: CustomerCreate, user_id: int = Depends(uid)):
 
 @app.get("/api/customers/outstanding")
 def outstanding_balances(user_id: int = Depends(uid)):
-    return db_get_outstanding_balances(user_id)
+    return get_outstanding_balances(user_id)
 
 
 @app.get("/api/customers/payment-history")
 def payment_history(user_id: int = Depends(uid)):
-    return db_get_customer_payment_history(user_id)
+    return get_customer_payment_history(user_id)
 
 
 # ---------- Products / stock ----------
 
 @app.get("/api/products")
 def list_products(user_id: int = Depends(uid)):
-    return products_with_image_data(db_get_all_products(user_id))
+    return get_all_products(user_id)
 
 
 @app.get("/api/products/low-stock")
 def low_stock_products(user_id: int = Depends(uid)):
-    return products_with_image_data(db_get_low_stock_products(user_id))
+    return get_low_stock_products(user_id)
 
 
 @app.post("/api/products", status_code=201)
 def create_product(payload: ProductCreate, user_id: int = Depends(uid)):
+    block_if_demo(user_id)
     pid = db_add_product(user_id, payload.name.strip(), payload.cost_price, payload.sell_price,
                          payload.stock_qty, payload.reorder_level, payload.image_data)
     warning = payload.sell_price < payload.cost_price
@@ -884,6 +1215,7 @@ def create_product(payload: ProductCreate, user_id: int = Depends(uid)):
 
 @app.put("/api/products/{product_id}")
 def update_product(product_id: int, payload: ProductUpdate, user_id: int = Depends(uid)):
+    block_if_demo(user_id)
     try:
         updated = db_update_product(user_id, product_id, payload.name.strip(), payload.cost_price,
                                     payload.sell_price, payload.stock_qty, payload.reorder_level,
@@ -895,6 +1227,7 @@ def update_product(product_id: int, payload: ProductUpdate, user_id: int = Depen
 
 @app.delete("/api/products/{product_id}")
 def delete_product(product_id: int, user_id: int = Depends(uid)):
+    block_if_demo(user_id)
     try:
         db_delete_product(user_id, product_id)
     except KeyError:
@@ -906,6 +1239,7 @@ def delete_product(product_id: int, user_id: int = Depends(uid)):
 
 @app.post("/api/products/{product_id}/restock")
 def restock_product(product_id: int, payload: RestockRequest, user_id: int = Depends(uid)):
+    block_if_demo(user_id)
     try:
         db_update_stock(user_id, product_id, payload.qty)
     except KeyError:
@@ -918,11 +1252,12 @@ def restock_product(product_id: int, payload: RestockRequest, user_id: int = Dep
 @app.get("/api/bills")
 def list_bills(start_date: Optional[str] = None, end_date: Optional[str] = None,
                customer_id: Optional[int] = None, user_id: int = Depends(uid)):
-    return db_get_bills(user_id, start_date, end_date, customer_id)
+    return get_bills(user_id, start_date, end_date, customer_id)
 
 
 @app.post("/api/bills", status_code=201)
 def create_bill(payload: BillCreate, user_id: int = Depends(uid)):
+    block_if_demo(user_id)
     items = [i.dict() for i in payload.items]
     total = sum(i["quantity"] * i["price_each"] for i in items)
     balance_due = round(total - payload.paid_amount, 2)
@@ -943,13 +1278,14 @@ def create_bill(payload: BillCreate, user_id: int = Depends(uid)):
 @app.get("/api/bills/{bill_id}/items")
 def bill_items(bill_id: int, user_id: int = Depends(uid)):
     try:
-        return db_get_bill_items(user_id, bill_id)
+        return get_bill_items(user_id, bill_id)
     except KeyError:
         raise HTTPException(status_code=404, detail="Bill not found")
 
 
 @app.post("/api/bills/{bill_id}/payments", status_code=201)
 def record_payment(bill_id: int, payload: PaymentCreate, user_id: int = Depends(uid)):
+    block_if_demo(user_id)
     try:
         db_add_payment(user_id, bill_id, payload.amount, payload.mode)
     except KeyError:
@@ -962,25 +1298,25 @@ def record_payment(bill_id: int, payload: PaymentCreate, user_id: int = Depends(
 @app.get("/api/sales/summary")
 def sales_summary(start_date: str, end_date: str, customer_id: Optional[int] = None,
                    user_id: int = Depends(uid)):
-    return db_get_sales_summary(user_id, start_date, end_date)
+    return get_sales_summary(user_id, start_date, end_date)
 
 
 @app.get("/api/dashboard/profit-loss")
 def profit_loss(start_date: str, end_date: str, user_id: int = Depends(uid)):
-    return db_get_profit_loss(user_id, start_date, end_date)
+    return get_profit_loss(user_id, start_date, end_date)
 
 
 @app.get("/api/dashboard/product-ranking")
 def product_ranking(start_date: str, end_date: str, user_id: int = Depends(uid)):
-    return db_get_product_sales_ranking(user_id, start_date, end_date)
+    return get_product_sales_ranking(user_id, start_date, end_date)
 
 
 # ---------- AI (Groq) ----------
 
 @app.post("/api/ai/sales-insights")
 def ai_sales_insights(start_date: str, end_date: str, user_id: int = Depends(uid)):
-    revenue, cost, profit = db_get_profit_loss(user_id, start_date, end_date).values()
-    ranking = db_get_product_sales_ranking(user_id, start_date, end_date)
+    revenue, cost, profit = get_profit_loss(user_id, start_date, end_date).values()
+    ranking = get_product_sales_ranking(user_id, start_date, end_date)
     top = [p for p in ranking if p["units_sold"] > 0][:5]
     slow = [p for p in ranking if p["units_sold"] == 0]
     return {"insight": analyze_sales_and_dashboard(revenue, cost, profit, top, slow)}
@@ -988,17 +1324,36 @@ def ai_sales_insights(start_date: str, end_date: str, user_id: int = Depends(uid
 
 @app.post("/api/ai/stock-insights")
 def ai_stock_insights(user_id: int = Depends(uid)):
-    low = db_get_low_stock_products(user_id)
-    all_products = db_get_all_products(user_id)
+    low = get_low_stock_products(user_id)
+    all_products = get_all_products(user_id)
     return {"insight": analyze_stock(low, all_products)}
 
 
 @app.post("/api/ai/payment-behavior")
 def ai_payment_behavior(user_id: int = Depends(uid)):
-    history = db_get_customer_payment_history(user_id)
+    history = get_customer_payment_history(user_id)
     return {"insight": analyze_customer_payment_behavior(history)}
 
 
 @app.post("/api/ai/coach")
 def ai_coach(payload: CoachMessage, user_id: int = Depends(uid)):
     return {"text": ai_coach_reply(user_id, payload.message, payload.history)}
+
+
+@app.get("/api/ai/daily-brief")
+def ai_daily_brief(refresh: bool = False, user_id: int = Depends(uid)):
+    """Returns today's AI brief, generated once per day and cached — pass ?refresh=true
+    to force a fresh one (e.g. after new sales come in). The demo account always gets a
+    freshly generated brief since there's nowhere to cache it against a real user row."""
+    today = str(datetime.date.today())
+    if is_demo(user_id):
+        brief = generate_daily_brief(user_id)
+        return {"date": today, "insight": brief, "generated_at": None, "cached": False}
+
+    if not refresh:
+        cached = db_get_daily_brief(user_id, today)
+        if cached:
+            return {"date": today, "insight": cached["content"], "generated_at": cached["created_at"], "cached": True}
+    brief = generate_daily_brief(user_id)
+    db_save_daily_brief(user_id, today, brief)
+    return {"date": today, "insight": brief, "generated_at": None, "cached": False}
