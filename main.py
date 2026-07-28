@@ -1,5 +1,5 @@
 """
-Ledgerly API — FastAPI backend for the billing / sales / stock / customers app.
+Expensa API — FastAPI backend for the billing / sales / stock / customers app.
 
 Multi-tenant: every business owner registers/logs in, and every row of data
 (customers, products, bills, payments) is scoped to their account. One shared
@@ -10,11 +10,9 @@ Run with:
     export GROQ_API_KEY=gsk_...          # get one free at https://console.groq.com
     uvicorn main:app --reload --port 8000
 """
-import psycopg2
-import psycopg2.extras
 
 import os
-
+import sqlite3
 import datetime
 import hashlib
 import secrets
@@ -30,91 +28,116 @@ from pydantic import BaseModel, Field, field_validator
 # ===========================================================================
 # SECTION 1: DATABASE LAYER
 # ===========================================================================
-DATABASE_URL = os.environ["DATABASE_URL"]
+
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "expense.db")
+
 SESSION_LIFETIME_DAYS = 30
 
 
 @contextmanager
 def get_connection():
-    conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10)
+    conn.execute("PRAGMA busy_timeout = 10000")
+    conn.execute("PRAGMA foreign_keys = ON")
+    conn.row_factory = sqlite3.Row
     try:
         yield conn
     finally:
         conn.close()
+
 
 def init_db():
     with get_connection() as conn:
         cur = conn.cursor()
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 business_name TEXT NOT NULL,
                 email TEXT NOT NULL UNIQUE,
                 password_hash TEXT NOT NULL,
                 password_salt TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT NOW()
+                created_at TEXT DEFAULT (datetime('now', 'localtime'))
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS sessions (
                 token TEXT PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                created_at TIMESTAMP DEFAULT NOW(),
-                expires_at TIMESTAMP NOT NULL
+                user_id INTEGER NOT NULL,
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                expires_at TEXT NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS customers (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id),
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 mobile TEXT,
-                created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(user_id, mobile)
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                UNIQUE(user_id, mobile),
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS products (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id),
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
                 image_path TEXT,
                 cost_price REAL NOT NULL,
                 sell_price REAL NOT NULL,
                 stock_qty INTEGER NOT NULL DEFAULT 0,
                 reorder_level INTEGER NOT NULL DEFAULT 5,
-                created_at TIMESTAMP DEFAULT NOW()
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS bills (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id),
-                customer_id INTEGER REFERENCES customers(id),
-                bill_date TIMESTAMP DEFAULT NOW(),
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                customer_id INTEGER,
+                bill_date TEXT DEFAULT (datetime('now', 'localtime')),
                 total_amount REAL NOT NULL DEFAULT 0,
                 paid_amount REAL NOT NULL DEFAULT 0,
                 balance_due REAL NOT NULL DEFAULT 0,
-                payment_mode TEXT
+                payment_mode TEXT,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (customer_id) REFERENCES customers(id)
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS bill_items (
-                id SERIAL PRIMARY KEY,
-                bill_id INTEGER NOT NULL REFERENCES bills(id),
-                product_id INTEGER NOT NULL REFERENCES products(id),
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bill_id INTEGER NOT NULL,
+                product_id INTEGER NOT NULL,
                 quantity INTEGER NOT NULL,
                 price_each REAL NOT NULL,
-                cost_each REAL NOT NULL
+                cost_each REAL NOT NULL,
+                FOREIGN KEY (bill_id) REFERENCES bills(id),
+                FOREIGN KEY (product_id) REFERENCES products(id)
             )
         """)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS payments (
-                id SERIAL PRIMARY KEY,
-                bill_id INTEGER NOT NULL REFERENCES bills(id),
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                bill_id INTEGER NOT NULL,
                 amount REAL NOT NULL,
                 mode TEXT NOT NULL,
-                payment_date TIMESTAMP DEFAULT NOW()
+                payment_date TEXT DEFAULT (datetime('now', 'localtime')),
+                FOREIGN KEY (bill_id) REFERENCES bills(id)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS daily_briefs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                brief_date TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now', 'localtime')),
+                UNIQUE(user_id, brief_date),
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
         conn.commit()
@@ -146,35 +169,32 @@ def products_with_image_data(products: List[dict]) -> List[dict]:
 # Auth / users
 # ---------------------------------------------------------------------------
 
-
 def hash_password(password: str, salt: Optional[str] = None) -> tuple:
     if salt is None:
         salt = secrets.token_hex(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 200_000)
     return digest.hex(), salt
 
+
 def db_create_user(business_name, email, password):
     password_hash, salt = hash_password(password)
     with get_connection() as conn:
         try:
-            cur = conn.cursor()
-            cur.execute(
-                "INSERT INTO users (business_name, email, password_hash, password_salt) VALUES (%s, %s, %s, %s) RETURNING id",
+            cur = conn.execute(
+                "INSERT INTO users (business_name, email, password_hash, password_salt) VALUES (?, ?, ?, ?)",
                 (business_name, email.lower(), password_hash, salt),
             )
-            new_id = cur.fetchone()["id"]
             conn.commit()
-            return new_id
-        except psycopg2.IntegrityError:
-            conn.rollback()
+            return cur.lastrowid
+        except sqlite3.IntegrityError:
             return None
 
 
 def db_get_user_by_email(email):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE email = %s", (email.lower(),))
-        return row_to_dict(cur.fetchone())
+        return row_to_dict(conn.execute(
+            "SELECT * FROM users WHERE email = ?", (email.lower(),)
+        ).fetchone())
 
 
 def db_verify_login(email, password):
@@ -191,9 +211,8 @@ def db_create_session(user_id):
     token = secrets.token_urlsafe(32)
     expires_at = (datetime.datetime.now() + datetime.timedelta(days=SESSION_LIFETIME_DAYS)).isoformat()
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO sessions (token, user_id, expires_at) VALUES (%s, %s, %s)",
+        conn.execute(
+            "INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)",
             (token, user_id, expires_at),
         )
         conn.commit()
@@ -202,18 +221,16 @@ def db_create_session(user_id):
 
 def db_get_session_user(token):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
+        row = conn.execute("""
             SELECT users.id, users.business_name, users.email, sessions.expires_at
             FROM sessions JOIN users ON sessions.user_id = users.id
-            WHERE sessions.token = %s
-        """, (token,))
-        row = cur.fetchone()
+            WHERE sessions.token = ?
+        """, (token,)).fetchone()
         if row is None:
             return None
         row = dict(row)
-        if datetime.datetime.fromisoformat(str(row["expires_at"])) < datetime.datetime.now():
-            cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
+        if datetime.datetime.fromisoformat(row["expires_at"]) < datetime.datetime.now():
+            conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
             conn.commit()
             return None
         return row
@@ -221,8 +238,7 @@ def db_get_session_user(token):
 
 def db_delete_session(token):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
+        conn.execute("DELETE FROM sessions WHERE token = ?", (token,))
         conn.commit()
 
 
@@ -233,43 +249,37 @@ def db_delete_session(token):
 def db_add_customer(user_id, name, mobile):
     with get_connection() as conn:
         try:
-            cur = conn.cursor()
-            cur.execute("INSERT INTO customers (user_id, name, mobile) VALUES (%s, %s, %s) RETURNING id",
-                        (user_id, name, mobile))
-            new_id = cur.fetchone()["id"]
+            cur = conn.execute("INSERT INTO customers (user_id, name, mobile) VALUES (?, ?, ?)",
+                                (user_id, name, mobile))
             conn.commit()
-            return new_id
-        except psycopg2.IntegrityError:
-            conn.rollback()
+            return cur.lastrowid
+        except sqlite3.IntegrityError:
             return None
 
 
 def db_get_all_customers(user_id):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM customers WHERE user_id = %s ORDER BY name", (user_id,))
-        return rows_to_list(cur.fetchall())
+        return rows_to_list(conn.execute(
+            "SELECT * FROM customers WHERE user_id = ? ORDER BY name", (user_id,)
+        ).fetchall())
 
 
 def db_get_outstanding_balances(user_id):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
+        return rows_to_list(conn.execute("""
             SELECT customers.id, customers.name, customers.mobile,
                    SUM(bills.balance_due) AS total_due,
                    COUNT(bills.id) AS bill_count
             FROM bills JOIN customers ON bills.customer_id = customers.id
-            WHERE bills.balance_due > 0 AND bills.user_id = %s
+            WHERE bills.balance_due > 0 AND bills.user_id = ?
             GROUP BY customers.id
             ORDER BY total_due DESC
-        """, (user_id,))
-        return rows_to_list(cur.fetchall())
+        """, (user_id,)).fetchall())
 
 
 def db_get_customer_payment_history(user_id):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
+        return rows_to_list(conn.execute("""
             SELECT customers.id, customers.name, customers.mobile,
                    COUNT(bills.id) AS total_bills,
                    SUM(bills.total_amount) AS total_billed,
@@ -277,12 +287,11 @@ def db_get_customer_payment_history(user_id):
                    SUM(bills.balance_due) AS total_due,
                    SUM(CASE WHEN bills.balance_due > 0 THEN 1 ELSE 0 END) AS unpaid_bill_count
             FROM customers LEFT JOIN bills ON customers.id = bills.customer_id
-            WHERE customers.user_id = %s
+            WHERE customers.user_id = ?
             GROUP BY customers.id
-            HAVING COUNT(bills.id) > 0
+            HAVING total_bills > 0
             ORDER BY total_due DESC
-        """, (user_id,))
-        return rows_to_list(cur.fetchall())
+        """, (user_id,)).fetchall())
 
 
 # ---------------------------------------------------------------------------
@@ -291,22 +300,19 @@ def db_get_customer_payment_history(user_id):
 
 def db_add_product(user_id, name, cost_price, sell_price, stock_qty, reorder_level=5, image_path=None):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute(
+        cur = conn.execute(
             """INSERT INTO products (user_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path)
-               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (user_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path),
         )
-        new_id = cur.fetchone()["id"]
         conn.commit()
-        return new_id
+        return cur.lastrowid
 
 
 def db_update_stock(user_id, product_id, qty_change):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "UPDATE products SET stock_qty = stock_qty + %s WHERE id = %s AND user_id = %s",
+        cur = conn.execute(
+            "UPDATE products SET stock_qty = stock_qty + ? WHERE id = ? AND user_id = ?",
             (qty_change, product_id, user_id),
         )
         conn.commit()
@@ -316,56 +322,55 @@ def db_update_stock(user_id, product_id, qty_change):
 
 def db_update_product(user_id, product_id, name, cost_price, sell_price, stock_qty, reorder_level, image_path=None):
     with get_connection() as conn:
-        cur = conn.cursor()
         if image_path is not None:
-            cur.execute(
-                """UPDATE products SET name=%s, cost_price=%s, sell_price=%s, stock_qty=%s,
-                       reorder_level=%s, image_path=%s WHERE id=%s AND user_id=%s""",
+            cur = conn.execute(
+                """UPDATE products SET name=?, cost_price=?, sell_price=?, stock_qty=?,
+                       reorder_level=?, image_path=? WHERE id=? AND user_id=?""",
                 (name, cost_price, sell_price, stock_qty, reorder_level, image_path, product_id, user_id),
             )
         else:
-            cur.execute(
-                """UPDATE products SET name=%s, cost_price=%s, sell_price=%s, stock_qty=%s,
-                       reorder_level=%s WHERE id=%s AND user_id=%s""",
+            cur = conn.execute(
+                """UPDATE products SET name=?, cost_price=?, sell_price=?, stock_qty=?,
+                       reorder_level=? WHERE id=? AND user_id=?""",
                 (name, cost_price, sell_price, stock_qty, reorder_level, product_id, user_id),
             )
+        conn.commit()
         if cur.rowcount == 0:
             raise KeyError("product not found")
-        conn.commit()
-        cur.execute("SELECT * FROM products WHERE id=%s AND user_id=%s", (product_id, user_id))
-        return row_to_dict(cur.fetchone())
+        return row_to_dict(conn.execute(
+            "SELECT * FROM products WHERE id=? AND user_id=?", (product_id, user_id)
+        ).fetchone())
 
 
 def db_delete_product(user_id, product_id):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT id FROM products WHERE id = %s AND user_id = %s", (product_id, user_id))
-        owned = cur.fetchone()
+        owned = conn.execute(
+            "SELECT id FROM products WHERE id = ? AND user_id = ?", (product_id, user_id)
+        ).fetchone()
         if owned is None:
             raise KeyError("product not found")
-        cur.execute("SELECT COUNT(*) AS count FROM bill_items WHERE product_id = %s", (product_id,))
-        in_use = cur.fetchone()["count"]
+        in_use = conn.execute(
+            "SELECT COUNT(*) FROM bill_items WHERE product_id = ?", (product_id,)
+        ).fetchone()[0]
         if in_use:
             raise ValueError("This product appears on existing bills and can't be deleted.")
-        cur.execute("DELETE FROM products WHERE id = %s AND user_id = %s", (product_id, user_id))
+        conn.execute("DELETE FROM products WHERE id = ? AND user_id = ?", (product_id, user_id))
         conn.commit()
 
 
 def db_get_all_products(user_id):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM products WHERE user_id = %s ORDER BY name", (user_id,))
-        return rows_to_list(cur.fetchall())
+        return rows_to_list(conn.execute(
+            "SELECT * FROM products WHERE user_id = ? ORDER BY name", (user_id,)
+        ).fetchall())
 
 
 def db_get_low_stock_products(user_id):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT * FROM products WHERE user_id = %s AND stock_qty <= reorder_level ORDER BY stock_qty",
+        return rows_to_list(conn.execute(
+            "SELECT * FROM products WHERE user_id = ? AND stock_qty <= reorder_level ORDER BY stock_qty",
             (user_id,),
-        )
-        return rows_to_list(cur.fetchall())
+        ).fetchall())
 
 
 # ---------------------------------------------------------------------------
@@ -374,46 +379,44 @@ def db_get_low_stock_products(user_id):
 
 def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
     with get_connection() as conn:
-        cur = conn.cursor()
         if customer_id is not None:
-            cur.execute(
-                "SELECT id FROM customers WHERE id = %s AND user_id = %s", (customer_id, user_id)
-            )
-            if cur.fetchone() is None:
+            owned = conn.execute(
+                "SELECT id FROM customers WHERE id = ? AND user_id = ?", (customer_id, user_id)
+            ).fetchone()
+            if owned is None:
                 raise ValueError("Customer not found")
 
         total_amount = sum(i["quantity"] * i["price_each"] for i in items)
         balance_due = round(total_amount - paid_amount, 2)
 
-        cur.execute(
+        cur = conn.execute(
             """INSERT INTO bills (user_id, customer_id, total_amount, paid_amount, balance_due, payment_mode)
-               VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+               VALUES (?, ?, ?, ?, ?, ?)""",
             (user_id, customer_id, total_amount, paid_amount, balance_due, payment_mode),
         )
-        bill_id = cur.fetchone()["id"]
+        bill_id = cur.lastrowid
 
         for item in items:
-            cur.execute(
-                "SELECT stock_qty FROM products WHERE id = %s AND user_id = %s",
+            prod = conn.execute(
+                "SELECT stock_qty FROM products WHERE id = ? AND user_id = ?",
                 (item["product_id"], user_id),
-            )
-            prod = cur.fetchone()
+            ).fetchone()
             if prod is None:
                 raise ValueError(f"Product {item['product_id']} not found")
             if item["quantity"] > prod["stock_qty"]:
                 raise ValueError(f"Not enough stock for product {item['product_id']}")
 
-            cur.execute(
+            conn.execute(
                 """INSERT INTO bill_items (bill_id, product_id, quantity, price_each, cost_each)
-                   VALUES (%s, %s, %s, %s, %s)""",
+                   VALUES (?, ?, ?, ?, ?)""",
                 (bill_id, item["product_id"], item["quantity"], item["price_each"], item["cost_each"]),
             )
-            cur.execute("UPDATE products SET stock_qty = stock_qty - %s WHERE id = %s",
-                        (item["quantity"], item["product_id"]))
+            conn.execute("UPDATE products SET stock_qty = stock_qty - ? WHERE id = ?",
+                         (item["quantity"], item["product_id"]))
 
         if paid_amount > 0:
-            cur.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (%s, %s, %s)",
-                        (bill_id, paid_amount, payment_mode))
+            conn.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (?, ?, ?)",
+                         (bill_id, paid_amount, payment_mode))
 
         conn.commit()
         return bill_id
@@ -421,15 +424,14 @@ def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
 
 def db_add_payment(user_id, bill_id, amount, mode):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT balance_due FROM bills WHERE id = %s AND user_id = %s", (bill_id, user_id)
-        )
-        if cur.fetchone() is None:
+        bill = conn.execute(
+            "SELECT balance_due FROM bills WHERE id = ? AND user_id = ?", (bill_id, user_id)
+        ).fetchone()
+        if bill is None:
             raise KeyError("bill not found")
-        cur.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (%s, %s, %s)", (bill_id, amount, mode))
-        cur.execute(
-            "UPDATE bills SET paid_amount = paid_amount + %s, balance_due = balance_due - %s WHERE id = %s",
+        conn.execute("INSERT INTO payments (bill_id, amount, mode) VALUES (?, ?, ?)", (bill_id, amount, mode))
+        conn.execute(
+            "UPDATE bills SET paid_amount = paid_amount + ?, balance_due = balance_due - ? WHERE id = ?",
             (amount, amount, bill_id),
         )
         conn.commit()
@@ -437,40 +439,38 @@ def db_add_payment(user_id, bill_id, amount, mode):
 
 def db_get_bills(user_id, start_date=None, end_date=None, customer_id=None):
     with get_connection() as conn:
-        cur = conn.cursor()
         query = """
             SELECT bills.*, customers.name AS customer_name, customers.mobile AS customer_mobile
             FROM bills LEFT JOIN customers ON bills.customer_id = customers.id
-            WHERE bills.user_id = %s
+            WHERE bills.user_id = ?
         """
         params = [user_id]
         if start_date:
-            query += " AND bill_date::date >= %s::date"
+            query += " AND date(bill_date) >= date(?)"
             params.append(start_date)
         if end_date:
-            query += " AND bill_date::date <= %s::date"
+            query += " AND date(bill_date) <= date(?)"
             params.append(end_date)
         if customer_id:
-            query += " AND bills.customer_id = %s"
+            query += " AND bills.customer_id = ?"
             params.append(customer_id)
         query += " ORDER BY bills.bill_date DESC"
-        cur.execute(query, params)
-        return rows_to_list(cur.fetchall())
+        return rows_to_list(conn.execute(query, params).fetchall())
 
 
 def db_get_bill_items(user_id, bill_id):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT id FROM bills WHERE id = %s AND user_id = %s", (bill_id, user_id))
-        if cur.fetchone() is None:
+        owned = conn.execute(
+            "SELECT id FROM bills WHERE id = ? AND user_id = ?", (bill_id, user_id)
+        ).fetchone()
+        if owned is None:
             raise KeyError("bill not found")
-        cur.execute(
+        return rows_to_list(conn.execute(
             """SELECT bill_items.*, products.name AS product_name
                FROM bill_items JOIN products ON bill_items.product_id = products.id
-               WHERE bill_id = %s""",
+               WHERE bill_id = ?""",
             (bill_id,),
-        )
-        return rows_to_list(cur.fetchall())
+        ).fetchall())
 
 
 # ---------------------------------------------------------------------------
@@ -479,29 +479,26 @@ def db_get_bill_items(user_id, bill_id):
 
 def db_get_sales_summary(user_id, start_date, end_date):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
+        row = conn.execute("""
             SELECT COALESCE(SUM(total_amount), 0) AS revenue,
                    COALESCE(SUM(paid_amount), 0) AS collected,
                    COALESCE(SUM(balance_due), 0) AS outstanding,
                    COUNT(*) AS bill_count
             FROM bills
-            WHERE user_id = %s AND bill_date::date BETWEEN %s::date AND %s::date
-        """, (user_id, start_date, end_date))
-        return dict(cur.fetchone())
+            WHERE user_id = ? AND date(bill_date) BETWEEN date(?) AND date(?)
+        """, (user_id, start_date, end_date)).fetchone()
+        return dict(row)
 
 
 def db_get_profit_loss(user_id, start_date, end_date):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
+        row = conn.execute("""
             SELECT
                 COALESCE(SUM(bill_items.quantity * bill_items.price_each), 0) AS revenue,
                 COALESCE(SUM(bill_items.quantity * bill_items.cost_each), 0) AS cost
             FROM bill_items JOIN bills ON bill_items.bill_id = bills.id
-            WHERE bills.user_id = %s AND bills.bill_date::date BETWEEN %s::date AND %s::date
-        """, (user_id, start_date, end_date))
-        row = cur.fetchone()
+            WHERE bills.user_id = ? AND date(bills.bill_date) BETWEEN date(?) AND date(?)
+        """, (user_id, start_date, end_date)).fetchone()
         revenue = row["revenue"] or 0
         cost = row["cost"] or 0
         return {"revenue": revenue, "cost": cost, "profit": revenue - cost}
@@ -509,39 +506,168 @@ def db_get_profit_loss(user_id, start_date, end_date):
 
 def db_get_product_sales_ranking(user_id, start_date, end_date):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("""
+        return rows_to_list(conn.execute("""
             SELECT products.id, products.name,
                    COALESCE(SUM(bill_items.quantity), 0) AS units_sold,
                    COALESCE(SUM(bill_items.quantity * bill_items.price_each), 0) AS revenue
             FROM products
             LEFT JOIN bill_items ON products.id = bill_items.product_id
             LEFT JOIN bills ON bill_items.bill_id = bills.id
-                AND bills.bill_date::date BETWEEN %s::date AND %s::date
-            WHERE products.user_id = %s
+                AND date(bills.bill_date) BETWEEN date(?) AND date(?)
+            WHERE products.user_id = ?
             GROUP BY products.id
             ORDER BY units_sold DESC
-        """, (start_date, end_date, user_id))
-        return rows_to_list(cur.fetchall())
+        """, (start_date, end_date, user_id)).fetchall())
 
 
 def db_get_home_summary(user_id):
     with get_connection() as conn:
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) AS count FROM customers WHERE user_id = %s", (user_id,))
-        total_customers = cur.fetchone()["count"]
-        cur.execute("SELECT COUNT(*) AS count FROM products WHERE user_id = %s", (user_id,))
-        total_products = cur.fetchone()["count"]
-        cur.execute("SELECT COUNT(*) AS count FROM bills WHERE user_id = %s", (user_id,))
-        total_bills = cur.fetchone()["count"]
-        cur.execute("SELECT COALESCE(SUM(balance_due),0) AS total FROM bills WHERE user_id = %s", (user_id,))
-        total_due = cur.fetchone()["total"]
+        total_customers = conn.execute(
+            "SELECT COUNT(*) FROM customers WHERE user_id = ?", (user_id,)).fetchone()[0]
+        total_products = conn.execute(
+            "SELECT COUNT(*) FROM products WHERE user_id = ?", (user_id,)).fetchone()[0]
+        total_bills = conn.execute(
+            "SELECT COUNT(*) FROM bills WHERE user_id = ?", (user_id,)).fetchone()[0]
+        total_due = conn.execute(
+            "SELECT COALESCE(SUM(balance_due),0) FROM bills WHERE user_id = ?", (user_id,)).fetchone()[0]
         return {
             "total_customers": total_customers,
             "total_products": total_products,
             "total_bills": total_bills,
             "total_due": total_due,
         }
+
+
+# ---------------------------------------------------------------------------
+# Daily AI brief (cached once per user per calendar day)
+# ---------------------------------------------------------------------------
+
+def db_get_daily_brief(user_id, brief_date):
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT content, created_at FROM daily_briefs WHERE user_id = ? AND brief_date = ?",
+            (user_id, brief_date),
+        ).fetchone()
+        return row_to_dict(row)
+
+
+def db_save_daily_brief(user_id, brief_date, content):
+    with get_connection() as conn:
+        conn.execute("""
+            INSERT INTO daily_briefs (user_id, brief_date, content) VALUES (?, ?, ?)
+            ON CONFLICT(user_id, brief_date) DO UPDATE SET content = excluded.content,
+                created_at = datetime('now', 'localtime')
+        """, (user_id, brief_date, content))
+        conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# Demo account seeding
+# ---------------------------------------------------------------------------
+
+DEMO_EMAIL = "admin@gmail.com"
+DEMO_PASSWORD = "admin1234"
+
+
+def _seed_insert_bill(conn, user_id, customer_id, days_ago, items, paid_amount, payment_mode="Cash"):
+    """Insert a bill dated `days_ago` days in the past, without touching product stock
+    (the demo products already start at the stock level we want to show)."""
+    bill_date = (datetime.datetime.now() - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M:%S")
+    total_amount = round(sum(i["quantity"] * i["price_each"] for i in items), 2)
+    balance_due = round(total_amount - paid_amount, 2)
+    cur = conn.execute(
+        """INSERT INTO bills (user_id, customer_id, bill_date, total_amount, paid_amount, balance_due, payment_mode)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (user_id, customer_id, bill_date, total_amount, paid_amount, balance_due, payment_mode),
+    )
+    bill_id = cur.lastrowid
+    for item in items:
+        conn.execute(
+            """INSERT INTO bill_items (bill_id, product_id, quantity, price_each, cost_each)
+               VALUES (?, ?, ?, ?, ?)""",
+            (bill_id, item["product_id"], item["quantity"], item["price_each"], item["cost_each"]),
+        )
+    if paid_amount > 0:
+        payment_date = bill_date
+        conn.execute(
+            "INSERT INTO payments (bill_id, amount, mode, payment_date) VALUES (?, ?, ?, ?)",
+            (bill_id, paid_amount, payment_mode, payment_date),
+        )
+    return bill_id
+
+
+def seed_demo_account():
+    """Creates a ready-to-explore demo account (admin@gmail.com / admin1234) with sample
+    customers, products (including a few low-stock items), and a few weeks of sales history —
+    so sales insights, stock insights, and the daily brief all have real numbers to talk about.
+    Runs once: if the account already exists, this is a no-op."""
+    if db_get_user_by_email(DEMO_EMAIL) is not None:
+        return
+
+    user_id = db_create_user("Expensa Demo Store", DEMO_EMAIL, DEMO_PASSWORD)
+    if user_id is None:
+        return
+
+    customer_ids = {}
+    for name, mobile in [
+        ("Rohan Mehta", "9876500001"),
+        ("Priya Sharma", "9876500002"),
+        ("Amit Verma", "9876500003"),
+        ("Sunita Rao", "9876500004"),
+    ]:
+        customer_ids[name] = db_add_customer(user_id, name, mobile)
+
+    # name -> (cost_price, sell_price, stock_qty, reorder_level)
+    product_specs = {
+        "Basmati Rice 5kg":               (420, 480, 42, 10),
+        "Sunflower Oil 1L":               (140, 165, 55, 15),
+        "Amul Butter 500g":               (210, 240, 26, 10),
+        "Surf Excel 1kg":                 (120, 145, 30, 10),
+        "Parle-G Biscuits (Pack of 10)":  (90,  115, 120, 20),
+        "Dish Wash Liquid 500ml":         (95,  130, 48, 12),
+        "Tata Salt 1kg":                  (22,  30,  8,  20),  # low stock
+        "Maggi Noodles (12 pack)":        (130, 156, 5,  15),  # low stock
+        "Colgate Toothpaste 200g":        (85,  105, 3,  12),  # low stock
+    }
+    product_ids = {}
+    for name, (cost, sell, stock, reorder) in product_specs.items():
+        product_ids[name] = db_add_product(user_id, name, cost, sell, stock, reorder)
+
+    def item(name, qty):
+        cost, sell, _, _ = product_specs[name]
+        return {"product_id": product_ids[name], "quantity": qty, "price_each": sell, "cost_each": cost}
+
+    R, P, A, S = customer_ids["Rohan Mehta"], customer_ids["Priya Sharma"], \
+                 customer_ids["Amit Verma"], customer_ids["Sunita Rao"]
+
+    # (customer_id, days_ago, items, paid_amount) — paid_amount < total leaves a balance due.
+    bill_plan = [
+        (R, 1,  [item("Basmati Rice 5kg", 2), item("Sunflower Oil 1L", 1)], None),
+        (P, 2,  [item("Parle-G Biscuits (Pack of 10)", 5), item("Tata Salt 1kg", 3)], None),
+        (None, 2, [item("Maggi Noodles (12 pack)", 2)], None),
+        (A, 3,  [item("Amul Butter 500g", 2), item("Colgate Toothpaste 200g", 1)], 200),
+        (S, 4,  [item("Basmati Rice 5kg", 1), item("Parle-G Biscuits (Pack of 10)", 10)], None),
+        (R, 5,  [item("Sunflower Oil 1L", 2), item("Tata Salt 1kg", 2)], None),
+        (P, 6,  [item("Maggi Noodles (12 pack)", 3), item("Colgate Toothpaste 200g", 2)], 300),
+        (None, 7, [item("Parle-G Biscuits (Pack of 10)", 8)], None),
+        (A, 8,  [item("Basmati Rice 5kg", 3), item("Amul Butter 500g", 1)], 0),
+        (S, 9,  [item("Sunflower Oil 1L", 1), item("Tata Salt 1kg", 1), item("Maggi Noodles (12 pack)", 1)], None),
+        (R, 10, [item("Parle-G Biscuits (Pack of 10)", 6), item("Colgate Toothpaste 200g", 1)], None),
+        (P, 12, [item("Basmati Rice 5kg", 2), item("Sunflower Oil 1L", 2)], None),
+        (None, 13, [item("Tata Salt 1kg", 2), item("Maggi Noodles (12 pack)", 2)], None),
+        (A, 15, [item("Colgate Toothpaste 200g", 2)], 0),
+        (S, 16, [item("Parle-G Biscuits (Pack of 10)", 4), item("Basmati Rice 5kg", 1)], None),
+        (R, 18, [item("Amul Butter 500g", 3), item("Sunflower Oil 1L", 1)], None),
+    ]
+
+    with get_connection() as conn:
+        for customer_id, days_ago, items, paid_amount in bill_plan:
+            total = round(sum(i["quantity"] * i["price_each"] for i in items), 2)
+            paid = total if paid_amount is None else paid_amount
+            _seed_insert_bill(conn, user_id, customer_id, days_ago, items, paid)
+        conn.commit()
+
+
 # ===========================================================================
 # SECTION 2: AI HELPER — Groq API calls
 # ===========================================================================
@@ -630,6 +756,41 @@ def analyze_stock(low_stock_products, all_products):
     return call_groq(system_prompt, user_prompt)
 
 
+def generate_daily_brief(user_id: int) -> str:
+    """One short, digestible AI brief for the day: today's sales so far, how the week is
+    trending, what needs reordering, and which customers to chase for payment."""
+    today = datetime.date.today()
+    week_start = today - datetime.timedelta(days=6)
+
+    today_stats = db_get_profit_loss(user_id, str(today), str(today))
+    week_stats = db_get_profit_loss(user_id, str(week_start), str(today))
+    low_stock = db_get_low_stock_products(user_id)
+    outstanding = db_get_outstanding_balances(user_id)
+
+    total_due = sum(o["total_due"] or 0 for o in outstanding)
+    top_due = sorted(outstanding, key=lambda o: -(o["total_due"] or 0))[:3]
+
+    low_str = ", ".join(
+        f"{p['name']} (stock {p['stock_qty']}, reorder level {p['reorder_level']})" for p in low_stock
+    ) or "none — stock levels look healthy"
+    due_str = ", ".join(f"{o['name']} owes {o['total_due']:.2f}" for o in top_due) or "none"
+
+    system_prompt = (
+        "You are Expensa's AI assistant writing a short daily brief for a small shop owner, "
+        "delivered first thing in the morning. Be warm, direct, and practical. Reply with 4-6 short "
+        "bullet points covering: today's sales so far, how the week is trending, any urgent stock to "
+        "reorder, and any customer payments worth chasing. End with one short, motivating line."
+    )
+    user_prompt = (
+        f"Today's revenue so far: ₹{today_stats['revenue']:.2f}, profit: ₹{today_stats['profit']:.2f}.\n"
+        f"Last 7 days revenue: ₹{week_stats['revenue']:.2f}, profit: ₹{week_stats['profit']:.2f}.\n"
+        f"Products at or below reorder level: {low_str}.\n"
+        f"Total outstanding balance owed by customers: ₹{total_due:.2f}. Customers who owe the most: {due_str}.\n\n"
+        "Write today's brief."
+    )
+    return call_groq(system_prompt, user_prompt, max_tokens=400)
+
+
 def ai_coach_reply(user_id: int, message: str, history: list):
     """Freeform AI Coach chat, grounded in the shop's live numbers."""
     today = datetime.date.today()
@@ -638,7 +799,7 @@ def ai_coach_reply(user_id: int, message: str, history: list):
     home = db_get_home_summary(user_id)
 
     system_prompt = (
-        "You are Ledgerly's AI Financial Coach for a small retail shop owner. You have their live "
+        "You are Expensa's AI Financial Coach for a small retail shop owner. You have their live "
         "numbers below. Be warm, direct, and practical — like a smart friend who's good with money. "
         "Keep replies short (3-6 sentences) unless asked for detail.\n\n"
         f"This month so far — revenue: ₹{revenue:.2f}, cost of goods sold: ₹{cost:.2f}, "
@@ -676,7 +837,7 @@ def ai_coach_reply(user_id: int, message: str, history: list):
 # SECTION 3: FASTAPI APP + ROUTES
 # ===========================================================================
 
-app = FastAPI(title="Ledgerly API")
+app = FastAPI(title="Expensa API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -689,11 +850,12 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     init_db()
+    seed_demo_account()
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LANDING_HTML_PATH = os.path.join(BASE_DIR, "index.html")   # marketing / startup page
-APP_HTML_PATH = os.path.join(BASE_DIR, "app.html")          # the actual Ledgerly app
+APP_HTML_PATH = os.path.join(BASE_DIR, "app.html")          # the actual Expensa app
 
 
 @app.get("/")
@@ -737,8 +899,6 @@ class RegisterRequest(BaseModel):
             raise ValueError("Enter a valid email address.")
         return v
 
-email="xyz@gmail.com"
-password="admin123"
 class LoginRequest(BaseModel):
     email:str
     password: str
@@ -1002,3 +1162,17 @@ def ai_payment_behavior(user_id: int = Depends(uid)):
 @app.post("/api/ai/coach")
 def ai_coach(payload: CoachMessage, user_id: int = Depends(uid)):
     return {"text": ai_coach_reply(user_id, payload.message, payload.history)}
+
+
+@app.get("/api/ai/daily-brief")
+def ai_daily_brief(refresh: bool = False, user_id: int = Depends(uid)):
+    """Returns today's AI brief, generated once per day and cached — pass ?refresh=true
+    to force a fresh one (e.g. after new sales come in)."""
+    today = str(datetime.date.today())
+    if not refresh:
+        cached = db_get_daily_brief(user_id, today)
+        if cached:
+            return {"date": today, "insight": cached["content"], "generated_at": cached["created_at"], "cached": True}
+    brief = generate_daily_brief(user_id)
+    db_save_daily_brief(user_id, today, brief)
+    return {"date": today, "insight": brief, "generated_at": None, "cached": False}
