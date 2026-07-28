@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EXPENSA — Billing &amp; Stock</title>
+<title>Ledgerly — Billing &amp; Stock</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   /* ===================================================================
-     EXPENSA — visual layer only. Variable NAMES are preserved because
+     Ledgerly — visual layer only. Variable NAMES are preserved because
      inline styles and JS reference var(--brand-text), var(--faint), etc.
      =================================================================== */
   :root{
@@ -532,7 +532,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V8"></path></svg>
       </div>
       <div>
-        <div style="font-weight:800; font-size:16px">EXPENSA</div>
+        <div style="font-weight:800; font-size:16px">Ledgerly</div>
         <div style="font-size:12px; color:var(--muted)">Billing &amp; Stock</div>
       </div>
     </div>
@@ -547,11 +547,7 @@
       <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username"></div>
       <div class="field" style="margin-top:12px"><label>Password</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
       <button class="btn" style="width:100%; margin-top:16px" onclick="doLogin()">Log in</button>
-      <button type="button" class="btn secondary" style="width:100%; margin-top:8px" onclick="fillDemoLogin()">Use demo account</button>
       <div id="loginStatus" style="margin-top:12px"></div>
-      <div style="margin-top:10px; font-size:11.5px; color:var(--faint); text-align:center">
-        Demo login: admin@gmail.com / admin1234
-      </div>
     </div>
 
     <!-- REGISTER FORM -->
@@ -574,7 +570,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V8"></path></svg>
       </div>
       <div>
-        <div class="name">EXPENSA</div>
+        <div class="name">Ledgerly</div>
         <div class="tag">Billing &amp; Stock</div>
       </div>
     </div>
@@ -638,24 +634,6 @@
       <!-- HOME -->
       <section class="page active" id="page-home">
         <div class="grid grid-4" id="homeStats"></div>
-
-        <div class="card" style="margin-top:18px; padding:18px">
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap">
-            <div style="display:flex; align-items:center; gap:8px">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--brand)"><path d="M12 3l1.6 3.9L18 8l-3.4 1.5L12 13l-1.6-3.5L7 8l3.4-1.1L12 3z"></path><path d="M18 14l.8 2 2 .8-2 .8L18 20l-.8-2-2-.8 2-.8.8-2z"></path></svg>
-              <h3 style="margin:0">Daily AI Brief</h3>
-            </div>
-            <div style="display:flex; align-items:center; gap:10px">
-              <span id="dailyBriefTime" style="font-size:11.5px; color:var(--faint)"></span>
-              <button class="btn secondary" style="padding:6px 12px; font-size:12.5px" onclick="loadDailyBrief(true)">Regenerate</button>
-            </div>
-          </div>
-          <p style="margin:6px 0 12px; font-size:13px; color:var(--muted)">
-            A fresh, once-a-day summary of your sales so far, this week's trend, low stock to reorder, and customers to chase — powered by Groq.
-          </p>
-          <div id="dailyBriefOut"></div>
-        </div>
-
         <div class="callout info" style="margin-top:18px">
           You could use the sidebar to go to <b>Billing</b> to create a bill, <b>Sales</b> for history,
           <b>Dashboard</b> for profit/loss and AI insights, <b>Stock</b> to manage inventory, or
@@ -939,7 +917,7 @@
 // file separately from the backend.
 // ===================================================================
 const API_BASE = '';
-const AUTH_TOKEN_KEY = 'expensa.token';
+const AUTH_TOKEN_KEY = 'ledgerly.token';
 
 function getToken(){ return localStorage.getItem(AUTH_TOKEN_KEY); }
 function setToken(t){ localStorage.setItem(AUTH_TOKEN_KEY, t); }
@@ -960,12 +938,6 @@ function showAuthScreen(){
 function showAppShell(){
   document.getElementById('authScreen').style.display = 'none';
   document.getElementById('appShell').style.display = 'block';
-}
-
-function fillDemoLogin(){
-  document.getElementById('loginEmail').value = 'admin@gmail.com';
-  document.getElementById('loginPassword').value = 'admin1234';
-  doLogin();
 }
 
 async function doLogin(){
@@ -1037,7 +1009,7 @@ function initials(name){ return name.split(' ').slice(0,2).map(w=>w[0]||'').join
 // ===================================================================
 // PREFERENCES — theme + currency, persisted in localStorage.
 // ===================================================================
-const STORE_KEYS = {theme:'expensa.theme', currency:'expensa.currency', range:'expensa.trendRange'};
+const STORE_KEYS = {theme:'ledgerly.theme', currency:'ledgerly.currency', range:'ledgerly.trendRange'};
 
 const CURRENCIES = {
   USD:{symbol:'$',  name:'US Dollar',        locale:'en-US', decimals:2, rate:1},
@@ -1209,21 +1181,6 @@ async function loadHome(){
     `;
     setApiStatus(true);
   }catch(e){ setApiStatus(false); }
-  loadDailyBrief(false);
-}
-
-async function loadDailyBrief(refresh){
-  const outEl = document.getElementById('dailyBriefOut');
-  const timeEl = document.getElementById('dailyBriefTime');
-  outEl.innerHTML = '<p><span class="spinner"></span>' + (refresh ? 'Regenerating…' : 'Loading today\u2019s brief…') + '</p>';
-  timeEl.textContent = '';
-  try{
-    const res = await api(`/api/ai/daily-brief${refresh ? '?refresh=true' : ''}`);
-    outEl.innerHTML = `<div class="callout info" style="white-space:pre-wrap">${res.insight}</div>`;
-    timeEl.textContent = res.cached ? 'Generated earlier today' : 'Just generated';
-  }catch(e){
-    outEl.innerHTML = `<div class="callout error">${e.message}</div>`;
-  }
 }
 function statCard(label, value, delta){
   return `<div class="card stat"><div class="label">${label}</div><div class="value">${value}</div>${delta?`<div class="delta ${delta.startsWith('-')?'neg':'pos'}">${delta}</div>`:''}</div>`;
