@@ -37,12 +37,12 @@
         "applicationCategory": "BusinessApplication",
         "operatingSystem": "Web",
         "description": "AI-powered business management software for small businesses. Invoices, inventory, customers, payments, analytics, and AI insights.",
-        "offers": {
-          "@type": "AggregateOffer",
-          "lowPrice": "29",
-          "highPrice": "199",
-          "priceCurrency": "USD"
-        }
+       "offers": {
+  "@type": "AggregateOffer",
+  "lowPrice": "0",
+  "highPrice": "199",
+  "priceCurrency": "USD"
+}
       }
     </script>
 
@@ -199,9 +199,10 @@
                     </p>
 <div class="flex flex-wrap gap-md">
 <button onclick="window.location.href='/app'" class="bg-primary text-on-primary px-3xl py-md rounded-xl font-label-sm text-lg hover:scale-105 transition-all shadow-xl shadow-primary/20">Launch App</button>
-<button class="flex items-center gap-xs px-3xl py-md rounded-xl font-label-sm text-lg border border-outline-variant hover:bg-surface-container transition-all">
-<span class="material-symbols-outlined">play_circle</span> Watch Demo
+<button onclick="tryDemo(this)" class="flex items-center gap-xs px-3xl py-md rounded-xl font-label-sm text-lg border border-outline-variant hover:bg-surface-container transition-all">
+<span class="material-symbols-outlined">play_circle</span> Try the Demo
                         </button>
+
 </div>
 </div>
 <div class="relative reveal active delay-200">
@@ -563,18 +564,18 @@
 <div class="grid lg:grid-cols-3 gap-xl">
 <!-- Starter -->
 <div class="p-xl rounded-xl border border-outline-variant/20 bg-white reveal">
-<div class="font-headline-md mb-md">Starter</div>
-<div class="mb-xl">
-<span class="text-display-lg-mobile font-bold">$29</span>
-<span class="text-on-surface-variant">/month</span>
-</div>
-<ul class="space-y-md mb-2xl">
-<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Up to 500 invoices/mo</li>
-<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Basic Inventory</li>
-<li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> 2 User Accounts</li>
-<li class="flex items-center gap-md text-on-surface-variant/40"><span class="material-symbols-outlined">close</span> Advanced AI Insights</li>
-</ul>
-<button onclick="window.location.href='/app'" class="w-full py-md rounded-xl border border-primary text-primary font-bold hover:bg-primary/5 transition-colors">Choose Starter</button>
+  <div class="font-headline-md mb-md">Starter</div>
+  <div class="mb-xl">
+    <span class="text-display-lg-mobile font-bold">$0</span>
+    <span class="text-on-surface-variant">/month, forever</span>
+  </div>
+  <ul class="space-y-md mb-2xl">
+    <li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Up to 500 invoices/mo</li>
+    <li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> Basic Inventory</li>
+    <li class="flex items-center gap-md"><span class="material-symbols-outlined text-primary">done</span> 2 User Accounts</li>
+    <li class="flex items-center gap-md text-on-surface-variant/40"><span class="material-symbols-outlined">close</span> Advanced AI Insights</li>
+  </ul>
+  <button onclick="window.location.href='/app'" class="w-full py-md rounded-xl border border-primary text-primary font-bold hover:bg-primary/5 transition-colors">Get Started Free</button>
 </div>
 <!-- Business (Highlighted) -->
 <div class="p-xl rounded-xl border-2 border-primary bg-white shadow-2xl relative scale-105 reveal z-10">
@@ -657,7 +658,7 @@
 <p class="text-body-lg mb-2xl opacity-90 max-w-2xl mx-auto relative z-10">Join over 10,000+ business owners who trust Expensa to manage their daily operations.</p>
 <div class="flex flex-wrap justify-center gap-md relative z-10">
 <button onclick="window.location.href='/app'" class="bg-white text-primary px-3xl py-md rounded-xl font-bold text-lg hover:scale-105 transition-all">Get Started Free</button>
-<button class="border border-white/40 bg-white/10 backdrop-blur-md px-3xl py-md rounded-xl font-bold text-lg hover:bg-white/20 transition-all">Request Demo</button>
+<button onclick="tryDemo(this)" class="border border-white/40 bg-white/10 backdrop-blur-md px-3xl py-md rounded-xl font-bold text-lg hover:bg-white/20 transition-all">Request Demo</button>
 </div>
 </div>
 </section>
@@ -725,7 +726,23 @@
         function toggleFaq(button) {
             const content = button.nextElementSibling;
             const isOpen = button.classList.contains('active');
-            
+// demo account
+            async function tryDemo(btn){
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = 'Loading demo…';
+  try{
+    const res = await fetch('/api/auth/demo', {method: 'POST'});
+    if(!res.ok) throw new Error('Demo unavailable');
+    const data = await res.json();
+    localStorage.setItem('expensa.token', data.token);
+    window.location.href = '/app';
+  }catch(e){
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+    alert("Couldn't start the demo right now — please try again in a moment.");
+  }
+}
             // Close all
             document.querySelectorAll('.faq-content').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.faq-btn').forEach(el => el.classList.remove('active'));
