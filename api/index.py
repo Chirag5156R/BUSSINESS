@@ -552,7 +552,60 @@ def db_get_home_summary(user_id):
             "total_bills": total_bills,
             "total_due": total_due,
         }
+def db_get_most_recent_bill_date(user_id) -> Optional[str]:
+    """Returns the most recent date (YYYY-MM-DD) that has at least one bill, or None."""
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT MAX(bill_date::date) AS d FROM bills WHERE user_id = %s",
+            (user_id,),
+        )
+        row = cur.fetchone()
+        return str(row["d"]) if row and row["d"] else None
 
+
+def generate_daily_brief(user_id: int) -> str:
+    """A short morning-style summary: the most recent active day's numbers, what
+    needs attention today (low stock, money owed), and that day's best seller."""
+    today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+
+    # Prefer yesterday if it had activity; otherwise fall back to the most
+    # recent day that actually has bills, so a fresh/demo account doesn't
+    # show an empty brief just because nothing happened yesterday.
+    brief_date = str(yesterday)
+    most_recent = db_get_most_recent_bill_date(user_id)
+    sales = db_get_sales_summary(user_id, brief_date, brief_date)
+    if sales["bill_count"] == 0 and most_recent is not None and most_recent != brief_date:
+        brief_date = most_recent
+        sales = db_get_sales_summary(user_id, brief_date, brief_date)
+
+    pl = db_get_profit_loss(user_id, brief_date, brief_date)
+    low_stock = db_get_low_stock_products(user_id)
+    home = db_get_home_summary(user_id)
+    ranking = db_get_product_sales_ranking(user_id, brief_date, brief_date)
+    top_for_day = [p for p in ranking if p["units_sold"] > 0]
+    top_for_day.sort(key=lambda p: p["units_sold"], reverse=True)
+    best_seller = top_for_day[0]["name"] if top_for_day else "no sales recorded"
+
+    low_stock_str = ", ".join(f"{p['name']} ({p['stock_qty']} left)" for p in low_stock) or "none"
+    is_today = brief_date == str(today)
+    day_label = "today so far" if is_today else ("yesterday" if brief_date == str(yesterday) else f"on {brief_date} (most recent activity)")
+
+    system_prompt = (
+        "You are Expensa's AI Daily Brief for a small retail shop owner, written first thing in "
+        "the morning. Sound like a sharp assistant giving a 30-second briefing before the day "
+        "starts — warm but efficient. 3-5 short sentences, no headers, no bullet list unless it "
+        "genuinely helps. End with the single most useful thing to do today, if there is one."
+    )
+    user_prompt = (
+        f"Numbers for {day_label}: revenue {sales['revenue']:.2f}, collected {sales['collected']:.2f}, "
+        f"profit {pl['profit']:.2f}, {sales['bill_count']} bills. Best seller: {best_seller}.\n"
+        f"Right now: {home['total_customers']} customers, {home['total_products']} products, "
+        f"total outstanding owed by customers {home['total_due']:.2f}.\n"
+        f"Low stock (at or below reorder level): {low_stock_str}.\n\n"
+        "Write today's briefing."
+    )
+    return call_groq(system_prompt, user_prompt, max_tokens=300)
 
 # ---------------------------------------------------------------------------
 # Demo account
@@ -562,13 +615,38 @@ DEMO_EMAIL = "demo@expensa.app"
 DEMO_PASSWORD = "demo1234"
 DEMO_BUSINESS_NAME = "Expensa Demo Store"
 
+def refresh_demo_bill_dates(user_id: int):
+    """Keeps the demo account's bills dated recently (today/yesterday), so the
+    AI Daily Brief and trend charts never look stale no matter when someone
+    hits 'Try the Demo' — even weeks after the account was first seeded."""
+    today = datetime.date.today()
+    with get_cursor() as cur:
+        cur.execute("SELECT id, bill_date FROM bills WHERE user_id = %s ORDER BY id", (user_id,))
+        bills = cur.fetchall()
+    if not bills:
+        return
+
+    most_recent = max(b["bill_date"] for b in bills)
+    most_recent_date = most_recent.date() if hasattr(most_recent, "date") else most_recent
+    if most_recent_date >= today - datetime.timedelta(days=1):
+        return  # already fresh, nothing to do
+
+    # Spread across yesterday/today so both "yesterday's numbers" and "today
+    # so far" have something to show.
+    with get_cursor(commit=True) as cur:
+        for i, b in enumerate(bills):
+            new_date = today - datetime.timedelta(days=1) if i % 2 == 0 else today
+            cur.execute("UPDATE bills SET bill_date = %s WHERE id = %s", (new_date, b["id"]))
+            cur.execute("UPDATE payments SET payment_date = %s WHERE bill_id = %s", (new_date, b["id"]))
+
 
 def ensure_demo_account():
     """Creates a ready-to-explore demo account (with stock, customers, and a
-    couple of bills) the first time the app runs. Safe to call repeatedly —
-    it's a no-op once the demo user already exists."""
+    couple of bills) the first time the app runs. On later cold starts, just
+    keeps its bill dates fresh instead of re-seeding."""
     existing = db_get_user_by_email(DEMO_EMAIL)
     if existing is not None:
+        refresh_demo_bill_dates(existing["id"])
         return
 
     user_id = db_create_user(DEMO_BUSINESS_NAME, DEMO_EMAIL, DEMO_PASSWORD)
@@ -589,6 +667,28 @@ def ensure_demo_account():
 
     customer_a = db_add_customer(user_id, "Rahul Sharma", "9876500001")
     customer_b = db_add_customer(user_id, "Priya Verma", "9876500002")
+
+    # A fully paid bill
+    bill_1_id = db_create_bill(
+        user_id, customer_a,
+        [{"product_id": product_ids["Rice 5kg"], "quantity": 2, "price_each": 320.0, "cost_each": 250.0},
+         {"product_id": product_ids["Sugar 1kg"], "quantity": 3, "price_each": 55.0, "cost_each": 42.0}],
+        paid_amount=805.0, payment_mode="Cash",
+    )
+    # A partially paid bill, so the outstanding-balances view has something to show
+    bill_2_id = db_create_bill(
+        user_id, customer_b,
+        [{"product_id": product_ids["Sunflower Oil 1L"], "quantity": 2, "price_each": 175.0, "cost_each": 140.0},
+         {"product_id": product_ids["Tea Leaves 250g"], "quantity": 1, "price_each": 120.0, "cost_each": 90.0}],
+        paid_amount=200.0, payment_mode="UPI",
+    )
+
+    # Backdate the first bill to yesterday, so the AI Daily Brief has real
+    # "yesterday" numbers to report on the moment the demo account exists.
+    yesterday = datetime.date.today() - datetime.timedelta(days=1)
+    with get_cursor(commit=True) as cur:
+        cur.execute("UPDATE bills SET bill_date = %s WHERE id = %s", (yesterday, bill_1_id))
+        cur.execute("UPDATE payments SET payment_date = %s WHERE bill_id = %s", (yesterday, bill_1_id))
 
     # A fully paid bill
     db_create_bill(
