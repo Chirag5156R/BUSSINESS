@@ -87,6 +87,14 @@
   a:hover{color:var(--brand)}
   button{font-family:inherit; cursor:pointer}
   input,select{font-family:inherit}
+  .ac-wrap{position:relative;width:100%}
+  .ac-input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--panel);color:var(--text);font-size:13.5px;outline:none}
+  .ac-input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-weak)}
+  .ac-dropdown{position:absolute;top:100%;left:0;right:0;z-index:100;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);margin-top:4px;max-height:200px;overflow-y:auto;display:none;box-shadow:var(--shadow-lg)}
+  .ac-item{padding:8px 12px;cursor:pointer;font-size:13px;color:var(--text);border-bottom:1px solid var(--border)}
+  .ac-item:last-child{border-bottom:none}
+  .ac-item:hover{background:var(--brand-weak);color:var(--brand-text)}
+  .ac-empty{padding:12px;text-align:center;color:var(--faint);font-size:13px}
   ::selection{background:var(--brand-weak-2)}
 
   .layout{display:flex; min-height:100vh; align-items:stretch}
@@ -387,6 +395,50 @@
   }
   @keyframes spin{to{transform:rotate(360deg)}}
 
+  /* ---------------- Customer picker (walk-in / search) ---------------- */
+  .cust-picker{position:relative}
+  .cust-toggle{
+    display:flex; gap:6px; background:var(--panel2); border:1px solid var(--border);
+    border-radius:999px; padding:4px; width:fit-content;
+  }
+  .cust-toggle-btn{
+    border:none; background:none; padding:7px 14px; border-radius:999px;
+    font-size:12.5px; font-weight:600; color:var(--muted); transition:.15s ease;
+  }
+  .cust-toggle-btn:hover{color:var(--text)}
+  .cust-toggle-btn.active{background:var(--panel); color:var(--brand-text); box-shadow:var(--shadow)}
+  .cust-toggle-btn:focus-visible{outline:none; box-shadow:0 0 0 3px var(--brand-weak-2)}
+  .cust-search-wrap{position:relative; margin-top:10px}
+  .cust-search-wrap svg{
+    position:absolute; left:11px; top:50%; transform:translateY(-50%);
+    color:var(--faint); pointer-events:none;
+  }
+  .cust-search-wrap input{padding-left:34px}
+  .cust-search-results{
+    position:absolute; left:0; right:0; top:calc(100% + 6px); z-index:20;
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius-sm);
+    box-shadow:var(--shadow-lg); max-height:220px; overflow-y:auto; display:none;
+  }
+  .cust-result-item{
+    padding:10px 12px; font-size:13px; cursor:pointer; color:var(--text);
+    display:flex; align-items:baseline; gap:6px; border-bottom:1px solid var(--border);
+  }
+  .cust-result-item:last-child{border-bottom:none}
+  .cust-result-item:hover{background:var(--panel2)}
+  .cust-result-item span{color:var(--faint); font-size:12px}
+  .cust-result-empty{padding:12px; font-size:12.5px; color:var(--faint); text-align:center}
+  .cust-selected-pill{
+    display:none; align-items:center; justify-content:space-between; gap:10px;
+    margin-top:10px; padding:9px 12px; background:var(--brand-weak);
+    border:1px solid var(--brand-weak-2); border-radius:var(--radius-sm);
+    font-size:13px; font-weight:600; color:var(--brand-text);
+  }
+  .cust-selected-pill button{
+    background:none; border:none; color:var(--brand-text); font-size:13px;
+    font-weight:700; padding:2px 6px; border-radius:6px;
+  }
+  .cust-selected-pill button:hover{background:var(--brand-weak-2)}
+
   /* ---------------- Responsive ---------------- */
   /* ---------------- Header tools ---------------- */
   .header-tools{display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-end}
@@ -663,12 +715,31 @@
               <h3>New bill</h3>
               <div class="field">
                 <label>Customer</label>
-                <select id="billCustomer"><option value="">Walk-in (no record)</option></select>
+                <div class="cust-picker">
+                  <div class="cust-toggle">
+                    <button type="button" class="cust-toggle-btn active" id="walkinBtn" onclick="setWalkin(true)">Walk-in (no record)</button>
+                    <button type="button" class="cust-toggle-btn" id="registeredBtn" onclick="setWalkin(false)">Registered customer</button>
+                  </div>
+                  <div class="cust-search-wrap" id="custSearchWrap" style="display:none">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg>
+                    <input type="text" id="custSearchInput" placeholder="Search by name or mobile…" autocomplete="off" oninput="filterCustomerOptions()" onfocus="filterCustomerOptions()">
+                    <div class="cust-search-results" id="custSearchResults"></div>
+                  </div>
+                  <div class="cust-selected-pill" id="custSelectedPill">
+                    <span id="custSelectedLabel"></span>
+                    <button type="button" onclick="clearSelectedCustomer()">Change</button>
+                  </div>
+                  <select id="billCustomer" style="display:none"><option value="">Walk-in (no record)</option></select>
+                </div>
               </div>
               <div class="row">
                 <div class="field">
                   <label>Product</label>
-                  <select id="billProduct"></select>
+                  <div class="ac-wrap">
+                    <input type="hidden" id="billProduct" value="">
+                    <input type="text" class="ac-input" id="billProductInput" placeholder="Search product..." autocomplete="off">
+                    <div class="ac-dropdown" id="billProductDropdown"></div>
+                  </div>
                 </div>
                 <div class="field" style="max-width:100px">
                   <label>Qty</label>
@@ -740,7 +811,11 @@
               <option>Today</option><option>This Week</option><option selected>This Month</option><option>All Time</option><option>Custom Range</option>
             </select>
           </div>
-          <div class="field"><label>Customer</label><select id="salesCustomer"><option value="">All customers</option></select></div>
+          <div class="field"><label>Customer</label><div class="ac-wrap">
+                    <input type="hidden" id="salesCustomer" value="">
+                    <input type="text" class="ac-input" id="salesCustomerInput" placeholder="All customers" autocomplete="off">
+                    <div class="ac-dropdown" id="salesCustomerDropdown"></div>
+                  </div></div>
         </div>
         <div class="row" id="salesCustomRange" style="display:none">
           <div class="field"><label>Start date</label><input type="date" id="salesStart"></div>
@@ -815,7 +890,11 @@
           <div class="card" style="margin-top:16px">
             <h3>Restock an existing item</h3>
             <div class="row">
-              <div class="field"><label>Product</label><select id="restockProduct"></select></div>
+              <div class="field"><label>Product</label><div class="ac-wrap">
+                    <input type="hidden" id="restockProduct" value="">
+                    <input type="text" class="ac-input" id="restockProductInput" placeholder="Search product..." autocomplete="off">
+                    <div class="ac-dropdown" id="restockProductDropdown"></div>
+                  </div></div>
               <div class="field" style="max-width:120px"><label>Qty to add</label><input id="restockQty" type="number" min="1" value="1"></div>
             </div>
             <div id="restockStatus"></div>
@@ -1149,6 +1228,57 @@ async function api(path, opts={}){
   return data;
 }
 
+// ---------- Autocomplete ----------
+function acInit(inputId, dropdownId, hiddenId) {
+  const input = document.getElementById(inputId);
+  const dropdown = document.getElementById(dropdownId);
+  const hidden = document.getElementById(hiddenId);
+  input._acData = [];
+
+  function render(items) {
+    if (!items || !items.length) {
+      dropdown.innerHTML = '<div class="ac-empty">No results</div>';
+      dropdown.style.display = 'block'; return;
+    }
+    dropdown.innerHTML = items.map(d => `<div class="ac-item" data-id="${d.id}">${d.label}</div>`).join('');
+    dropdown.style.display = 'block';
+  }
+
+  input.addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    if (!input._acData) return;
+    if (!q) { render(input._acData); return; }
+    render(input._acData.filter(d => d.label.toLowerCase().includes(q)));
+  });
+
+  dropdown.addEventListener('click', function(e) {
+    const el = e.target.closest('.ac-item');
+    if (!el) return;
+    const id = el.dataset.id;
+    hidden.value = id;
+    const item = input._acData.find(d => String(d.id) === id);
+    if (item) input.value = item.label;
+    dropdown.style.display = 'none';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+
+  input.addEventListener('focus', function() {
+    if (input._acData && input._acData.length) render(input._acData);
+  });
+
+  input.addEventListener('blur', function() {
+    setTimeout(() => { dropdown.style.display = 'none'; }, 200);
+  });
+
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') dropdown.style.display = 'none';
+  });
+}
+
+acInit('billProductInput', 'billProductDropdown', 'billProduct');
+acInit('salesCustomerInput', 'salesCustomerDropdown', 'salesCustomer');
+acInit('restockProductInput', 'restockProductDropdown', 'restockProduct');
+
 // ---------- Navigation ----------
 function goTo(page){
   document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.page===page));
@@ -1212,6 +1342,7 @@ function setApiStatus(ok){
 // ---------- Billing ----------
 let cart = [];
 let customersCache = [], productsCache = [];
+let walkinMode = true;
 
 async function loadBillingTab(){
   const [customers, products] = await Promise.all([api('/api/customers'), api('/api/products')]);
@@ -1221,13 +1352,83 @@ async function loadBillingTab(){
   custSel.innerHTML = '<option value="">Walk-in (no record)</option>' +
     customers.map(c => `<option value="${c.id}">${c.name} (${c.mobile})</option>`).join('');
 
-  const prodSel = document.getElementById('billProduct');
-  prodSel.innerHTML = products.map(p => `<option value="${p.id}">${p.name} (${inr(p.sell_price)}, stock ${p.stock_qty})</option>`).join('');
+  const prodInput = document.getElementById('billProductInput');
+  prodInput._acData = products.map(p => ({id: p.id, label: `${p.name} (${inr(p.sell_price)}, stock ${p.stock_qty})`}));
+  document.getElementById('billProduct').value = '';
 
   renderCustTable(customers);
   renderOutstanding();
   renderUnpaidBills();
+  resetCustomerPicker();
 }
+
+// ---------- Customer picker (walk-in / registered search) ----------
+function resetCustomerPicker(){
+  document.getElementById('custSearchInput').value = '';
+  document.getElementById('custSearchResults').style.display = 'none';
+  document.getElementById('custSearchResults').innerHTML = '';
+  setWalkin(true);
+}
+
+function setWalkin(isWalkin){
+  walkinMode = isWalkin;
+  document.getElementById('walkinBtn').classList.toggle('active', isWalkin);
+  document.getElementById('registeredBtn').classList.toggle('active', !isWalkin);
+  document.getElementById('billCustomer').value = '';
+  document.getElementById('custSelectedPill').style.display = 'none';
+  document.getElementById('custSearchInput').value = '';
+  document.getElementById('custSearchResults').style.display = 'none';
+  if(isWalkin){
+    document.getElementById('custSearchWrap').style.display = 'none';
+  }else{
+    document.getElementById('custSearchWrap').style.display = 'block';
+    document.getElementById('custSearchInput').focus();
+  }
+  updateBillStatus();
+}
+
+function filterCustomerOptions(){
+  const q = document.getElementById('custSearchInput').value.trim().toLowerCase();
+  const results = document.getElementById('custSearchResults');
+  const matches = customersCache.filter(c => !q || c.name.toLowerCase().includes(q) || c.mobile.includes(q));
+  if(matches.length === 0){
+    results.innerHTML = '<div class="cust-result-empty">No matching customers</div>';
+  }else{
+    results.innerHTML = matches.map(c =>
+      `<div class="cust-result-item" onclick="selectCustomer(${c.id})">${c.name} <span>(${c.mobile})</span></div>`
+    ).join('');
+  }
+  results.style.display = 'block';
+}
+
+function selectCustomer(id){
+  const c = customersCache.find(x => x.id === Number(id));
+  if(!c) return;
+  document.getElementById('billCustomer').value = c.id;
+  document.getElementById('custSearchResults').style.display = 'none';
+  document.getElementById('custSearchWrap').style.display = 'none';
+  document.getElementById('custSelectedLabel').textContent = `${c.name} (${c.mobile})`;
+  document.getElementById('custSelectedPill').style.display = 'flex';
+  updateBillStatus();
+}
+
+function clearSelectedCustomer(){
+  document.getElementById('billCustomer').value = '';
+  document.getElementById('custSelectedPill').style.display = 'none';
+  document.getElementById('custSearchWrap').style.display = 'block';
+  document.getElementById('custSearchInput').value = '';
+  document.getElementById('custSearchInput').focus();
+  filterCustomerOptions();
+  updateBillStatus();
+}
+
+document.addEventListener('click', function(e){
+  const wrap = document.getElementById('custSearchWrap');
+  if(wrap && !wrap.contains(e.target)){
+    const results = document.getElementById('custSearchResults');
+    if(results) results.style.display = 'none';
+  }
+});
 
 function renderCustTable(customers){
   document.getElementById('custTable').querySelector('tbody').innerHTML =
@@ -1370,9 +1571,9 @@ function onDashPeriodChange(){ periodToRange('dashPeriod','dashStart','dashEnd',
 async function loadSales(){
   const customers = customersCache.length ? customersCache : await api('/api/customers');
   customersCache = customers;
-  const custSel = document.getElementById('salesCustomer');
-  if(custSel.options.length <= 1){
-    custSel.innerHTML = '<option value="">All customers</option>' + customers.map(c => `<option value="${c.id}">${c.name} (${c.mobile})</option>`).join('');
+  const custInput = document.getElementById('salesCustomerInput');
+  if(!custInput._acData || !custInput._acData.length){
+    custInput._acData = customers.map(c => ({id: c.id, label: `${c.name} (${c.mobile})`}));
   }
   const {start, end} = periodToRange('salesPeriod','salesStart','salesEnd','salesCustomRange');
   const customerId = document.getElementById('salesCustomer').value;
@@ -1619,7 +1820,7 @@ async function loadStock(){
     </div>`;
   }).join('') : '<p class="empty">No products added yet. Use the "Add Item" tab.</p>';
 
-  document.getElementById('restockProduct').innerHTML = products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  document.getElementById('restockProductInput')._acData = products.map(p => ({id: p.id, label: p.name}));
 
   document.getElementById('lowStockCallout').innerHTML = lowStock.length
     ? `<div class="callout error">Low stock items: ${lowStock.map(p => `${p.name} (${p.stock_qty})`).join(', ')}</div>`
