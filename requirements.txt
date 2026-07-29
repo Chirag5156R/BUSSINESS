@@ -1,6 +1,4 @@
-fastapi
-uvicorn
-psycopg2-binary
-python-dotenv
-requests
-pydantic
+fastapi==0.115.0
+pydantic==2.9.2
+requests==2.32.3
+psycopg2-binary==2.9.9
