@@ -721,28 +721,11 @@
         };
         window.addEventListener('scroll', revealHandler);
         window.addEventListener('load', revealHandler);
-
-        // FAQ Toggle
+// FAQ Toggle
         function toggleFaq(button) {
             const content = button.nextElementSibling;
             const isOpen = button.classList.contains('active');
-// demo account
-            async function tryDemo(btn){
-  const originalText = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = 'Loading demo…';
-  try{
-    const res = await fetch('/api/auth/demo', {method: 'POST'});
-    if(!res.ok) throw new Error('Demo unavailable');
-    const data = await res.json();
-    localStorage.setItem('expensa.token', data.token);
-    window.location.href = '/app';
-  }catch(e){
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-    alert("Couldn't start the demo right now — please try again in a moment.");
-  }
-}
+
             // Close all
             document.querySelectorAll('.faq-content').forEach(el => el.classList.add('hidden'));
             document.querySelectorAll('.faq-btn').forEach(el => el.classList.remove('active'));
@@ -753,6 +736,24 @@
             } else {
                 content.classList.add('hidden');
                 button.classList.remove('active');
+            }
+        }
+
+        // Try the Demo — logs straight into the pre-seeded demo account
+        async function tryDemo(btn){
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = 'Loading demo…';
+            try{
+                const res = await fetch('/api/auth/demo', {method: 'POST'});
+                if(!res.ok) throw new Error('Demo unavailable');
+                const data = await res.json();
+                localStorage.setItem('expensa.token', data.token);
+                window.location.href = '/app';
+            }catch(e){
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                alert("Couldn't start the demo right now — please try again in a moment.");
             }
         }
 
