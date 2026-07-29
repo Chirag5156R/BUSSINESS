@@ -1083,7 +1083,7 @@ def product_ranking(start_date: str, end_date: str, user_id: int = Depends(uid))
     return db_get_product_sales_ranking(user_id, start_date, end_date)
 
 
-# ---------- AI (Groq) ----------
+# ---------- AI Daily insights----------
 
 @app.post("/api/ai/sales-insights")
 def ai_sales_insights(start_date: str, end_date: str, user_id: int = Depends(uid)):
