@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   /* ===================================================================
-     Ledgerly — visual layer only. Variable NAMES are preserved because
+     EXPENSA — visual layer only. Variable NAMES are preserved because
      inline styles and JS reference var(--brand-text), var(--faint), etc.
      =================================================================== */
   :root{
@@ -532,7 +532,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V8"></path></svg>
       </div>
       <div>
-        <div style="font-weight:800; font-size:16px">Ledgerly</div>
+        <div style="font-weight:800; font-size:16px">EXPENSA</div>
         <div style="font-size:12px; color:var(--muted)">Billing &amp; Stock</div>
       </div>
     </div>
@@ -570,7 +570,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V9m5 10V5m5 14v-7m5 7V8"></path></svg>
       </div>
       <div>
-        <div class="name">Ledgerly</div>
+        <div class="name">EXPENSA</div>
         <div class="tag">Billing &amp; Stock</div>
       </div>
     </div>
@@ -632,14 +632,21 @@
     <div class="content">
 
       <!-- HOME -->
-      <section class="page active" id="page-home">
-        <div class="grid grid-4" id="homeStats"></div>
-        <div class="callout info" style="margin-top:18px">
-          You could use the sidebar to go to <b>Billing</b> to create a bill, <b>Sales</b> for history,
-          <b>Dashboard</b> for profit/loss and AI insights, <b>Stock</b> to manage inventory, or
-          <b>AI Coach</b> to ask.
-        </div>
-      </section>
+     
+<section class="page active" id="page-home">
+  <div class="grid grid-4" id="homeStats"></div>
+
+  <div class="card" style="margin-top:18px">
+    <h3>✨ AI Daily Brief</h3>
+    <div id="dailyBriefOut"><p class="empty">Loading your brief…</p></div>
+  </div>
+
+  <div class="callout info" style="margin-top:18px">
+    You could use the sidebar to go to <b>Billing</b> to create a bill, <b>Sales</b> for history,
+    <b>Dashboard</b> for profit/loss and AI insights, <b>Stock</b> to manage inventory, or
+    <b>AI Coach</b> to ask.
+  </div>
+</section>
 
       <!-- BILLING -->
       <section class="page" id="page-billing">
@@ -917,7 +924,7 @@
 // file separately from the backend.
 // ===================================================================
 const API_BASE = '';
-const AUTH_TOKEN_KEY = 'ledgerly.token';
+const AUTH_TOKEN_KEY = 'expensa.token';
 
 function getToken(){ return localStorage.getItem(AUTH_TOKEN_KEY); }
 function setToken(t){ localStorage.setItem(AUTH_TOKEN_KEY, t); }
@@ -1009,7 +1016,7 @@ function initials(name){ return name.split(' ').slice(0,2).map(w=>w[0]||'').join
 // ===================================================================
 // PREFERENCES — theme + currency, persisted in localStorage.
 // ===================================================================
-const STORE_KEYS = {theme:'ledgerly.theme', currency:'ledgerly.currency', range:'ledgerly.trendRange'};
+const STORE_KEYS = {theme:'expensa.theme', currency:'expensa.currency', range:'expensa'.trendRange'};
 
 const CURRENCIES = {
   USD:{symbol:'$',  name:'US Dollar',        locale:'en-US', decimals:2, rate:1},
@@ -1170,6 +1177,7 @@ document.querySelectorAll('.tabs').forEach(tabs => {
 });
 
 // ---------- Home ----------
+// ---------- Home ----------
 async function loadHome(){
   try{
     const s = await api('/api/summary');
@@ -1181,6 +1189,18 @@ async function loadHome(){
     `;
     setApiStatus(true);
   }catch(e){ setApiStatus(false); }
+  loadDailyBrief();
+}
+
+async function loadDailyBrief(){
+  const el = document.getElementById('dailyBriefOut');
+  el.innerHTML = '<p><span class="spinner"></span>Getting your brief…</p>';
+  try{
+    const res = await api('/api/ai/daily-brief', {method:'POST', body: '{}'});
+    el.innerHTML = `<div class="callout info" style="white-space:pre-wrap">${res.brief}</div>`;
+  }catch(e){
+    el.innerHTML = `<div class="callout error">${e.message}</div>`;
+  }
 }
 function statCard(label, value, delta){
   return `<div class="card stat"><div class="label">${label}</div><div class="value">${value}</div>${delta?`<div class="delta ${delta.startsWith('-')?'neg':'pos'}">${delta}</div>`:''}</div>`;
