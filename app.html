@@ -1016,8 +1016,7 @@ function initials(name){ return name.split(' ').slice(0,2).map(w=>w[0]||'').join
 // ===================================================================
 // PREFERENCES — theme + currency, persisted in localStorage.
 // ===================================================================
-const STORE_KEYS = {theme:'expensa.theme', currency:'expensa.currency', range:'expensa'.trendRange'};
-
+const STORE_KEYS = {theme:'expensa.theme', currency:'expensa.currency', range:'expensa.trendRange'};
 const CURRENCIES = {
   USD:{symbol:'$',  name:'US Dollar',        locale:'en-US', decimals:2, rate:1},
   EUR:{symbol:'€',  name:'Euro',             locale:'de-DE', decimals:2, rate:1},
