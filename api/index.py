@@ -1,27 +1,5 @@
 """
-Expensa API — FastAPI backend for the billing / sales / stock / customers app.
-Multi-tenant: every business owner registers/logs in, and every row of data
-(customers, products, bills, payments) is scoped to their account.
-
-Deployment note
-----------------
-Vercel serverless functions run on a read-only, ephemeral filesystem — a SQLite
-file written there does not persist between requests, and different
-invocations may not even share the same container. So this uses Postgres
-(via DATABASE_URL) instead. Any free Postgres works well with Vercel:
-Neon (neon.tech), Supabase, or Vercel Postgres itself.
-
-Required environment variables (set these in the Vercel project settings):
-  DATABASE_URL    postgres connection string, e.g.
-                   postgresql://user:pass@host/dbname?sslmode=require
-  GROQ_API_KEY     optional — enables the AI insights/coach endpoints.
-                   Get a free key at https://console.groq.com
-
-Local dev:
-  pip install -r requirements.txt
-  export DATABASE_URL=postgresql://...
-  export GROQ_API_KEY=gsk_...
-  uvicorn api.index:app --reload --port 8000
+Expensa 
 """
 
 import os
@@ -186,9 +164,8 @@ def products_with_image_data(products: List[dict]) -> List[dict]:
     return [with_image_data(p) for p in products]
 
 
-# ---------------------------------------------------------------------------
-# Auth / users
-# ---------------------------------------------------------------------------
+# Auth 
+
 
 def hash_password(password: str, salt: Optional[str] = None) -> tuple:
     if salt is None:
@@ -263,9 +240,8 @@ def db_delete_session(token):
         cur.execute("DELETE FROM sessions WHERE token = %s", (token,))
 
 
-# ---------------------------------------------------------------------------
+
 # Customers
-# ---------------------------------------------------------------------------
 
 def db_add_customer(user_id, name, mobile):
     try:
@@ -317,9 +293,9 @@ def db_get_customer_payment_history(user_id):
         return rows_to_list(cur.fetchall())
 
 
-# ---------------------------------------------------------------------------
-# Products / stock
-# ---------------------------------------------------------------------------
+
+# stock
+
 
 def db_add_product(user_id, name, cost_price, sell_price, stock_qty, reorder_level=5, image_path=None):
     with get_cursor(commit=True) as cur:
@@ -387,9 +363,8 @@ def db_get_low_stock_products(user_id):
         return rows_to_list(cur.fetchall())
 
 
-# ---------------------------------------------------------------------------
+
 # Billing
-# ---------------------------------------------------------------------------
 
 def db_create_bill(user_id, customer_id, items, paid_amount, payment_mode):
     with get_cursor(commit=True) as cur:
