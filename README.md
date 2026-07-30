@@ -29,8 +29,8 @@ We saw how small business owners suffer due to poor management of stocks, sales,
 *   Learning about frontend 
 *  Managing dynamic application states without  using local storage files.
 ## What's next for EXPENSA (An app to manage business better)
-**UI  improvement** To improve the Ui and make it more appealing.
-**Adding new features** to add more features which may help owners.
-**Consumers** : Find clients for the app.
-**Mobile Deployment** : Launch the web app for mobile.
-**AI MODELS** :Add more ai features and different AI models.
+* **UI  improvement** To improve the Ui and make it more appealing.
+* **Adding new features** to add more features which may help owners.
+* **Consumers** : Find clients for the app.
+* **Mobile Deployment** : Launch the web app for mobile.
+* **AI MODELS** :Add more ai features and different AI models.
